@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { WeeklyGrid } from "@/components/weekly-grid";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export default async function Home() {
     .maybeSingle();
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-16">
       <header className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Office Hours</h1>
@@ -55,9 +56,9 @@ export default async function Home() {
         </dl>
       </section>
 
-      <p className="text-sm text-zinc-500">
-        Next up: the weekly scheduling grid and check-in flow.
-      </p>
+      <WeeklyGrid userId={user.id} />
+
+      <p className="text-sm text-zinc-500">Next up: geolocation check-in.</p>
     </main>
   );
 }

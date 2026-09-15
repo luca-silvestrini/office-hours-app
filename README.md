@@ -15,7 +15,7 @@ location-verified check-in, and email reminders.
 | 1 | Next.js scaffold + Vercel config + `api-go/` | ✅ done |
 | 2 | Supabase schema + row-level security | ✅ migration written (`supabase/migrations/0001_init.sql`) |
 | 3 | Magic-link auth end to end | ✅ done |
-| 4 | Weekly calendar UI | ⬜ not started |
+| 4 | Weekly calendar UI | ✅ done |
 | 5 | Go geolocation check-in | ⬜ stub only (`api-go/health.go`, `api-go/internal/geo`) |
 | 6 | Vercel Cron + reminder emails | ⬜ not started |
 | 7 | Retroactive / manual check-in | ⬜ RLS in place, UI not started |
