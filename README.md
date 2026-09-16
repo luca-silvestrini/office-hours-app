@@ -133,6 +133,14 @@ shared Go packages used by more than one function **must not** live under
 `internal/` — Vercel's per-function isolated build relocates the importing
 file outside that package's module namespace, which breaks Go's internal-import
 visibility rule the moment two functions need the same shared code.
+
+`vercel.json` also needs an explicit `routes` array mapping each `/api-go/*`
+path to its build source (e.g. `/api-go/checkin` → `/api-go/checkin.go`),
+plus a catch-all `{ "src": "/(.*)", "dest": "/$1" }` for everything else.
+Without it, `@vercel/next`'s own router claims every path — including
+`/api-go/*` — before the Go functions ever run, so they 404 even though the
+build succeeded. Add a new `routes` entry alongside each new function.
+
 Set the same environment variables in Vercel → Project Settings. Vercel Cron
 (step 6) will be added to `vercel.json` as a `crons` entry pointing at the
 reminders Go function.

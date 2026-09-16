@@ -4,5 +4,10 @@
     { "src": "package.json", "use": "@vercel/next" },
     { "src": "api-go/health.go", "use": "@vercel/go" },
     { "src": "api-go/checkin.go", "use": "@vercel/go" }
+  ],
+  "routes": [
+    { "src": "/api-go/health", "dest": "/api-go/health.go" },
+    { "src": "/api-go/checkin", "dest": "/api-go/checkin.go" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
