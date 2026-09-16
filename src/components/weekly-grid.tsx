@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
-import { SLOT_START_HOURS } from "@/lib/config";
+import { RECURRING_HORIZON_WEEKS, SLOT_START_HOURS } from "@/lib/config";
 import { addWeeks, slotStart, startOfWeek, weekDays } from "@/lib/week";
 import type { Database } from "@/lib/supabase/types";
+import { SlotModal } from "@/components/slot-modal";
 
 type Slot = Database["public"]["Tables"]["office_hours_slots"]["Row"];
+type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 
 const HOUR_LABEL = new Intl.DateTimeFormat(undefined, { hour: "numeric" });
 const DAY_HEADER = new Intl.DateTimeFormat(undefined, {
@@ -19,8 +21,10 @@ const DAY_HEADER = new Intl.DateTimeFormat(undefined, {
 export function WeeklyGrid({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ start: Date; end: Date; anchorRect: DOMRect } | null>(
+    null,
+  );
 
   const weekStart = useMemo(() => addWeeks(startOfWeek(new Date()), weekOffset), [weekOffset]);
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
@@ -44,6 +48,27 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     },
   );
 
+  const mySlotIds = useMemo(
+    () => slots.filter((s) => s.user_id === userId).map((s) => s.id),
+    [slots, userId],
+  );
+
+  const { data: checkIns = [], mutate: mutateCheckIns } = useSWR<CheckIn[]>(
+    mySlotIds.length ? (["check_ins", ...mySlotIds] as const) : null,
+    async (key) => {
+      const ids = key.slice(1) as string[];
+      const { data, error } = await supabase.from("check_ins").select("*").in("slot_id", ids);
+      if (error) throw error;
+      return data;
+    },
+  );
+
+  const checkInsBySlotId = useMemo(() => {
+    const map = new Map<string, CheckIn>();
+    for (const c of checkIns) map.set(c.slot_id, c);
+    return map;
+  }, [checkIns]);
+
   // Multiple people can claim the same hour, so each start_time maps to a list.
   // Postgres serializes timestamptz as "...+00:00"; Date#toISOString() (used for
   // lookups below) produces "...Z" — same instant, different string. Normalize
@@ -59,46 +84,91 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     return map;
   }, [slots]);
 
-  async function handleClick(start: Date, isPast: boolean, mine: Slot | undefined) {
-    if (isPast) return;
-
+  async function claim(start: Date, repeatWeekly: boolean) {
     const startIso = start.toISOString();
     const end = new Date(start);
     end.setHours(end.getHours() + 1);
 
-    setPendingKey(startIso);
-    setActionError(null);
-
-    if (!mine) {
+    if (!repeatWeekly) {
       const { data, error } = await supabase
         .from("office_hours_slots")
         .insert({ user_id: userId, start_time: startIso, end_time: end.toISOString() })
         .select()
         .single();
-      if (error) {
-        setActionError(
-          error.code === "23505"
-            ? "You've already claimed that slot — refreshing."
-            : error.message,
-        );
-        await mutate();
-      } else if (data) {
-        await mutate([...slots, data], { revalidate: false });
-      }
-    } else {
-      const { error } = await supabase.from("office_hours_slots").delete().eq("id", mine.id);
-      if (error) {
-        setActionError(error.message);
-      } else {
-        await mutate(
-          slots.filter((s) => s.id !== mine.id),
-          { revalidate: false },
-        );
-      }
+      if (error) throw new Error(error.code === "23505" ? "You've already claimed that slot." : error.message);
+      await mutate([...slots, data], { revalidate: false });
+      return;
     }
 
-    setPendingKey(null);
+    const { data: series, error: seriesError } = await supabase
+      .from("recurring_claims")
+      .insert({ user_id: userId })
+      .select()
+      .single();
+    if (seriesError) throw new Error(seriesError.message);
+
+    const rows = Array.from({ length: RECURRING_HORIZON_WEEKS }, (_, i) => {
+      const occurrenceStart = addWeeks(start, i);
+      const occurrenceEnd = new Date(occurrenceStart);
+      occurrenceEnd.setHours(occurrenceEnd.getHours() + 1);
+      return {
+        user_id: userId,
+        start_time: occurrenceStart.toISOString(),
+        end_time: occurrenceEnd.toISOString(),
+        recurring_claim_id: series.id,
+      };
+    });
+
+    const { error } = await supabase
+      .from("office_hours_slots")
+      .upsert(rows, { onConflict: "user_id,start_time", ignoreDuplicates: true });
+    if (error) {
+      await supabase.from("recurring_claims").delete().eq("id", series.id);
+      throw new Error(error.message);
+    }
+    await mutate();
   }
+
+  async function releaseOne(slot: Slot) {
+    const { error } = await supabase.from("office_hours_slots").delete().eq("id", slot.id);
+    if (error) throw new Error(error.message);
+    await mutate(
+      slots.filter((s) => s.id !== slot.id),
+      { revalidate: false },
+    );
+  }
+
+  async function releaseThisAndFuture(slot: Slot) {
+    if (!slot.recurring_claim_id) return releaseOne(slot);
+    const { error } = await supabase
+      .from("office_hours_slots")
+      .delete()
+      .eq("recurring_claim_id", slot.recurring_claim_id)
+      .gte("start_time", slot.start_time);
+    if (error) throw new Error(error.message);
+    await supabase.from("recurring_claims").delete().eq("id", slot.recurring_claim_id);
+    await mutate();
+  }
+
+  async function checkIn(slot: Slot, latitude: number, longitude: number) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) throw new Error("You're signed out — refresh and sign in again.");
+
+    const res = await fetch("/api-go/checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ slot_id: slot.id, latitude, longitude }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Check-in failed (${res.status}).`);
+    await mutateCheckIns((prev = []) => [...prev, body as CheckIn], { revalidate: false });
+  }
+
+  const selectedClaimants = selected ? slotsByStart.get(selected.start.toISOString()) ?? [] : [];
+  const selectedMine = selectedClaimants.find((s) => s.user_id === userId);
+  const selectedMyCheckIn = selectedMine ? checkInsBySlotId.get(selectedMine.id) : undefined;
 
   return (
     <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
@@ -127,9 +197,9 @@ export function WeeklyGrid({ userId }: { userId: string }) {
         </div>
       </div>
 
-      {(actionError || fetchError) && (
+      {(globalError || fetchError) && (
         <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
-          {actionError ?? "Couldn't load the schedule. Try refreshing."}
+          {globalError ?? "Couldn't load the schedule. Try refreshing."}
         </p>
       )}
 
@@ -156,12 +226,16 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                 </td>
                 {days.map((day) => {
                   const start = slotStart(day, hour);
+                  const end = new Date(start);
+                  end.setHours(end.getHours() + 1);
                   const key = start.toISOString();
                   const claimants = slotsByStart.get(key) ?? [];
                   const mine = claimants.find((s) => s.user_id === userId);
                   const othersCount = claimants.length - (mine ? 1 : 0);
-                  const isPast = start.getTime() <= Date.now();
-                  const isPending = pendingKey === key;
+                  // A slot stays interactive through its end_time, not just its
+                  // start_time — it's still "now" for the person checking in
+                  // partway through the hour.
+                  const isPast = end.getTime() <= Date.now();
 
                   let label: string;
                   if (mine) label = othersCount > 0 ? `Yours +${othersCount}` : "Yours";
@@ -173,11 +247,13 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                       <button
                         type="button"
                         data-slot={key}
-                        disabled={isPast || isPending}
-                        onClick={() => handleClick(start, isPast, mine)}
+                        disabled={isPast}
+                        onClick={(e) =>
+                          setSelected({ start, end, anchorRect: e.currentTarget.getBoundingClientRect() })
+                        }
                         className={cellClass(isPast, !!mine, othersCount > 0)}
                       >
-                        {isPending ? "…" : label}
+                        {label}
                       </button>
                     </td>
                   );
@@ -201,6 +277,31 @@ export function WeeklyGrid({ userId }: { userId: string }) {
       </div>
 
       {isLoading && <p className="mt-3 text-xs text-zinc-500">Loading…</p>}
+
+      {selected && (
+        <SlotModal
+          key={selected.start.toISOString()}
+          anchorRect={selected.anchorRect}
+          start={selected.start}
+          end={selected.end}
+          claimants={selectedClaimants}
+          mine={selectedMine}
+          myCheckIn={selectedMyCheckIn}
+          onClose={() => setSelected(null)}
+          onClaim={async (start, repeatWeekly) => {
+            setGlobalError(null);
+            try {
+              await claim(start, repeatWeekly);
+            } catch (err) {
+              setGlobalError(err instanceof Error ? err.message : "Something went wrong.");
+              throw err;
+            }
+          }}
+          onReleaseOne={releaseOne}
+          onReleaseThisAndFuture={releaseThisAndFuture}
+          onCheckIn={checkIn}
+        />
+      )}
     </section>
   );
 }

@@ -58,7 +58,7 @@ export default async function Home() {
 
       <WeeklyGrid userId={user.id} />
 
-      <p className="text-sm text-zinc-500">Next up: geolocation check-in.</p>
+      <p className="text-sm text-zinc-500">Next up: Vercel Cron + reminder emails.</p>
     </main>
   );
 }

@@ -30,3 +30,19 @@ export const SLOT_START_HOURS: number[] = Array.from(
   { length: GRID.lastSlotHour - GRID.firstSlotHour },
   (_, i) => GRID.firstSlotHour + i,
 );
+
+/**
+ * How many weekly occurrences a "repeat weekly" claim materializes up front.
+ * Not truly infinite — a year reads as indefinite to a user. True
+ * never-ending continuation belongs to a step-6 cron job that tops up any
+ * still-active recurring_claims row as its horizon runs low.
+ */
+export const RECURRING_HORIZON_WEEKS = 52;
+
+/**
+ * A geolocation check-in can be submitted starting this many minutes before a
+ * slot's start_time, through its end_time. Mirrored independently in
+ * api-go/checkin.go — the frontend only uses this to decide whether to show
+ * the button; the Go function is the actual source of truth.
+ */
+export const CHECK_IN_WINDOW_EARLY_MINUTES = 10;
