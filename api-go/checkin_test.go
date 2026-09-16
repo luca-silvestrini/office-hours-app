@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"office-hours/api-go/internal/geo"
+	"office-hours/api-go/geo"
 )
 
 // fakeSupabase stands in for the three Supabase endpoints checkin.go calls:

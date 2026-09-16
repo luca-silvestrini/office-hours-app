@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"office-hours/api-go/internal/geo"
+	"office-hours/api-go/geo"
 )
 
 // checkInEarlyGraceMinutes mirrors CHECK_IN_WINDOW_EARLY_MINUTES in

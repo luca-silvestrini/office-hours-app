@@ -94,7 +94,7 @@ RLS smoke test (SQL Editor, as an authenticated user via the API, or with
 src/
   proxy.ts                     # session refresh + auth gate (Next 16 "proxy", formerly middleware)
   lib/
-    config.ts                  # office coordinates + grid constants (mirrors api-go/internal/geo)
+    config.ts                  # office coordinates + grid constants (mirrors api-go/geo)
     supabase/
       client.ts                # browser client
       server.ts                # server client (cookies)
@@ -109,9 +109,14 @@ src/
 api-go/
   go.mod
   health.go                    # GET /api-go/health — proves the Go pipeline
-  internal/geo/geo.go          # haversine + office location (used in step 5)
+  checkin.go                   # POST /api-go/checkin — geolocation check-in
+  geo/geo.go                   # haversine + office location — NOT under internal/:
+                                #   Vercel's Go builder isolates each function into
+                                #   its own build sandbox, which breaks Go's internal/
+                                #   import-visibility rule the moment more than one
+                                #   function needs the shared package
 supabase/
-  migrations/0001_init.sql
+  migrations/0001-0003_*.sql
 vercel.json                    # polyglot build: @vercel/next + @vercel/go
 ```
 
