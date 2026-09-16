@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import { RECURRING_HORIZON_WEEKS, SLOT_START_HOURS } from "@/lib/config";
@@ -26,9 +26,24 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     null,
   );
 
-  const weekStart = useMemo(() => addWeeks(startOfWeek(new Date()), weekOffset), [weekOffset]);
-  const days = useMemo(() => weekDays(weekStart), [weekStart]);
-  const weekEnd = useMemo(() => addWeeks(weekStart, 1), [weekStart]);
+  // "Now" must never be computed during Next.js's server pre-render (Vercel's
+  // functions run in UTC) — the week grid's hours are relative to the
+  // *browser's* local timezone, and a server-computed value here would bake
+  // wrong UTC offsets straight into every slot's start_time, since claim()
+  // reuses these same Date objects. Deferring to an effect guarantees this
+  // only ever runs client-side, after hydration.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    // This is the deliberate fix, not an anti-pattern: `now` must only ever
+    // exist as a client-computed value, never a server-rendered one, so it
+    // has to be set from inside an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(new Date());
+  }, []);
+
+  const weekStart = useMemo(() => (now ? addWeeks(startOfWeek(now), weekOffset) : null), [now, weekOffset]);
+  const days = useMemo(() => (weekStart ? weekDays(weekStart) : null), [weekStart]);
+  const weekEnd = useMemo(() => (weekStart ? addWeeks(weekStart, 1) : null), [weekStart]);
 
   const {
     data: slots = [],
@@ -36,7 +51,9 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     isLoading,
     mutate,
   } = useSWR<Slot[]>(
-    ["office_hours_slots", weekStart.toISOString(), weekEnd.toISOString()] as const,
+    weekStart && weekEnd
+      ? (["office_hours_slots", weekStart.toISOString(), weekEnd.toISOString()] as const)
+      : null,
     async ([, startIso, endIso]) => {
       const { data, error } = await supabase
         .from("office_hours_slots")
@@ -170,6 +187,17 @@ export function WeeklyGrid({ userId }: { userId: string }) {
   const selectedMine = selectedClaimants.find((s) => s.user_id === userId);
   const selectedMyCheckIn = selectedMine ? checkInsBySlotId.get(selectedMine.id) : undefined;
 
+  if (!now || !days) {
+    return (
+      <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Weekly schedule
+        </h2>
+        <p className="mt-3 text-xs text-zinc-500">Loading…</p>
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -235,7 +263,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                   // A slot stays interactive through its end_time, not just its
                   // start_time — it's still "now" for the person checking in
                   // partway through the hour.
-                  const isPast = end.getTime() <= Date.now();
+                  const isPast = end.getTime() <= now.getTime();
 
                   let label: string;
                   if (mine) label = othersCount > 0 ? `Yours +${othersCount}` : "Yours";
