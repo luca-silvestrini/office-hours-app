@@ -123,7 +123,16 @@ vercel.json                    # polyglot build: @vercel/next + @vercel/go
 ## Deploy notes
 
 `vercel.json` uses `builds` to run the Next.js app and the Go functions side by
-side. Go files map to routes by path: `api-go/health.go` → `/api-go/health`.
+side. Each Go function is listed explicitly by path (`api-go/health.go` →
+`/api-go/health`, `api-go/checkin.go` → `/api-go/checkin`) rather than via a
+recursive glob — Vercel's Go builder treats every matched `*.go` file as its
+own function requiring an exported `Handler`, which breaks as soon as a
+shared package (`api-go/geo/`) or a `_test.go` file gets swept up too. Add new
+functions to both `vercel.json`'s `builds` array and this list. Also note:
+shared Go packages used by more than one function **must not** live under
+`internal/` — Vercel's per-function isolated build relocates the importing
+file outside that package's module namespace, which breaks Go's internal-import
+visibility rule the moment two functions need the same shared code.
 Set the same environment variables in Vercel → Project Settings. Vercel Cron
 (step 6) will be added to `vercel.json` as a `crons` entry pointing at the
 reminders Go function.

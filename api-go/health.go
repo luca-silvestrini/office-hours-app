@@ -1,6 +1,12 @@
 // Package handler is the entrypoint package for every Vercel Go serverless
-// function in this directory. Each *.go file that exports `Handler` becomes a
-// route:  api-go/health.go  ->  GET /api-go/health
+// function in this directory. Each file listed explicitly as a `@vercel/go`
+// build source in vercel.json becomes a route by exporting `Handler`:
+//	api-go/health.go -> GET /api-go/health
+// vercel.json lists route files individually rather than a recursive glob —
+// Vercel's Go builder treats every matched *.go file as a function candidate
+// requiring its own exported Handler, which breaks the moment a shared
+// package (geo/) or a _test.go file is swept up by the glob too. Add new
+// functions to vercel.json's `builds` array alongside this one.
 package handler
 
 import (

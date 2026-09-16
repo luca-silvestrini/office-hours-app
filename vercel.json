@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "builds": [
     { "src": "package.json", "use": "@vercel/next" },
-    { "src": "api-go/**/*.go", "use": "@vercel/go" }
+    { "src": "api-go/health.go", "use": "@vercel/go" },
+    { "src": "api-go/checkin.go", "use": "@vercel/go" }
   ]
 }
