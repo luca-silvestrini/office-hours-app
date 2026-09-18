@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CHECK_IN_WINDOW_EARLY_MINUTES } from "@/lib/config";
+import { displayNames } from "@/lib/names";
 import type { Database } from "@/lib/supabase/types";
 
 type Slot = Database["public"]["Tables"]["office_hours_slots"]["Row"];
@@ -35,8 +36,9 @@ export function SlotModal({
   start,
   end,
   claimants,
-  mine,
-  myCheckIn,
+  mineSlots,
+  namesByUserId,
+  checkInsBySlotId,
   onClose,
   onClaim,
   onReleaseOne,
@@ -47,20 +49,21 @@ export function SlotModal({
   start: Date;
   end: Date;
   claimants: Slot[];
-  mine: Slot | undefined;
-  myCheckIn: CheckIn | undefined;
+  /** 0 = not yours, 1 = a single claim, 2 = back-to-back — checked in together. */
+  mineSlots: Slot[];
+  namesByUserId: Map<string, string>;
+  checkInsBySlotId: Map<string, CheckIn>;
   onClose: () => void;
   onClaim: (start: Date, repeatWeekly: boolean) => Promise<void>;
   onReleaseOne: (slot: Slot) => Promise<void>;
   onReleaseThisAndFuture: (slot: Slot) => Promise<void>;
-  onCheckIn: (slot: Slot, latitude: number, longitude: number) => Promise<void>;
+  onCheckIn: (slots: Slot[], latitude: number, longitude: number) => Promise<void>;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkedIn, setCheckedIn] = useState(!!myCheckIn);
 
   useLayoutEffect(() => {
     const el = popoverRef.current;
@@ -83,7 +86,21 @@ export function SlotModal({
     };
   }, [onClose]);
 
-  const othersCount = claimants.length - (mine ? 1 : 0);
+  const mineIds = new Set(mineSlots.map((s) => s.id));
+  const otherUserIds = claimants
+    .filter((c) => !mineIds.has(c.id))
+    .map((c) => c.user_id)
+    .filter((id): id is string => !!id);
+  const otherNames = displayNames(otherUserIds, namesByUserId);
+
+  // Back-to-back slots share one check-in covering their combined span, so the
+  // window and "already checked in" state are computed across all of them.
+  const windowStart = mineSlots.length
+    ? new Date(Math.min(...mineSlots.map((s) => new Date(s.start_time).getTime())))
+    : start;
+  const windowEnd = mineSlots.length
+    ? new Date(Math.max(...mineSlots.map((s) => new Date(s.end_time).getTime())))
+    : end;
   // One-shot "is it check-in time" read for this popover instance (it's
   // freshly mounted per click, via the `key` in weekly-grid.tsx) — staleness
   // within a single open session is an acceptable tradeoff, not a live
@@ -91,7 +108,10 @@ export function SlotModal({
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const checkInWindowOpen =
-    now >= start.getTime() - CHECK_IN_WINDOW_EARLY_MINUTES * 60_000 && now <= end.getTime();
+    mineSlots.length > 0 &&
+    now >= windowStart.getTime() - CHECK_IN_WINDOW_EARLY_MINUTES * 60_000 &&
+    now <= windowEnd.getTime();
+  const allCheckedIn = mineSlots.length > 0 && mineSlots.every((s) => checkInsBySlotId.has(s.id));
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -107,7 +127,7 @@ export function SlotModal({
   }
 
   function handleCheckIn() {
-    if (!mine) return;
+    if (!mineSlots.length) return;
     setBusy(true);
     setError(null);
     if (!("geolocation" in navigator)) {
@@ -118,8 +138,7 @@ export function SlotModal({
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          await onCheckIn(mine, position.coords.latitude, position.coords.longitude);
-          setCheckedIn(true);
+          await onCheckIn(mineSlots, position.coords.latitude, position.coords.longitude);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Check-in failed.");
         } finally {
@@ -162,13 +181,12 @@ export function SlotModal({
       )}
 
       <div className="mt-4 space-y-3">
-        {!mine && (
+        {otherNames.length > 0 && (
+          <p className="text-sm text-zinc-500">Also signed up: {otherNames.join(", ")}</p>
+        )}
+
+        {mineSlots.length === 0 && (
           <>
-            {othersCount > 0 && (
-              <p className="text-sm text-zinc-500">
-                {othersCount} {othersCount === 1 ? "person" : "people"} already signed up.
-              </p>
-            )}
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -188,19 +206,18 @@ export function SlotModal({
           </>
         )}
 
-        {mine && (
-          <>
+        {mineSlots.map((slot) => (
+          <div key={slot.id}>
             <p className="text-sm text-emerald-600 dark:text-emerald-400">
-              You&apos;re signed up for this slot
-              {othersCount > 0 ? ` (+${othersCount} other${othersCount === 1 ? "" : "s"})` : ""}.
+              You&apos;re signed up for {TIME_LABEL.format(new Date(slot.start_time))} –{" "}
+              {TIME_LABEL.format(new Date(slot.end_time))}.
             </p>
-
-            {mine.recurring_claim_id ? (
-              <div className="flex gap-2">
+            {slot.recurring_claim_id ? (
+              <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => run(() => onReleaseOne(mine))}
+                  onClick={() => run(() => onReleaseOne(slot))}
                   className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 >
                   Release this occurrence
@@ -208,7 +225,7 @@ export function SlotModal({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => run(() => onReleaseThisAndFuture(mine))}
+                  onClick={() => run(() => onReleaseThisAndFuture(slot))}
                   className="flex-1 rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
                 >
                   Release this and all future
@@ -218,30 +235,36 @@ export function SlotModal({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => run(() => onReleaseOne(mine))}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                onClick={() => run(() => onReleaseOne(slot))}
+                className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
               >
                 Release
               </button>
             )}
+          </div>
+        ))}
 
-            {checkInWindowOpen && (
-              <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-                {checkedIn ? (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">Checked in ✓</p>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={handleCheckIn}
-                    className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
-                  >
-                    {busy ? "Checking in…" : "Check In"}
-                  </button>
-                )}
-              </div>
+        {checkInWindowOpen && (
+          <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+            {mineSlots.length === 2 && (
+              <p className="mb-2 text-xs text-zinc-500">
+                Back-to-back — one check-in covers both {TIME_LABEL.format(windowStart)} –{" "}
+                {TIME_LABEL.format(windowEnd)}.
+              </p>
             )}
-          </>
+            {allCheckedIn ? (
+              <p className="text-sm text-emerald-600 dark:text-emerald-400">Checked in ✓</p>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleCheckIn}
+                className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+              >
+                {busy ? "Checking in…" : "Check In"}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -2,9 +2,9 @@
  * App-wide configuration constants.
  *
  * The office location is the "configurable constant" from the spec. It is also
- * mirrored in the Go geolocation function (api-go/internal/geo/geo.go); keep the
- * two in sync, or set OFFICE_LATITUDE / OFFICE_LONGITUDE in the environment so
- * both read the same values.
+ * mirrored in the Go geolocation function (api-go/geo/geo.go); keep the two in
+ * sync, or set OFFICE_LATITUDE / OFFICE_LONGITUDE in the environment so both
+ * read the same values.
  */
 export const OFFICE_LOCATION = {
   latitude: Number(process.env.OFFICE_LATITUDE ?? 37.8679),
@@ -46,3 +46,12 @@ export const RECURRING_HORIZON_WEEKS = 52;
  * the button; the Go function is the actual source of truth.
  */
 export const CHECK_IN_WINDOW_EARLY_MINUTES = 10;
+
+/**
+ * Soft, client-side-only cap — enforced in weekly-grid.tsx's claim() before
+ * it ever calls Supabase, not a DB constraint. See the "repeat weekly" batch
+ * insert: a DB-level trigger would fail an entire 52-week series atomically
+ * over one unrelated future week already being at cap, so this is checked
+ * only against the currently-viewed week's already-fetched data.
+ */
+export const MAX_SLOTS_PER_USER_PER_WEEK = 2;

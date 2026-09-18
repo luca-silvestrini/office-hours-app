@@ -31,14 +31,19 @@ import (
 // is the actual source of truth enforced server-side.
 const checkInEarlyGraceMinutes = 10
 
+// maxSlotsPerCheckIn mirrors MAX_SLOTS_PER_USER_PER_WEEK in src/lib/config.ts
+// — a person can hold at most 2 slots a week, so a check-in ever spans at
+// most 2 back-to-back ones.
+const maxSlotsPerCheckIn = 2
+
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 var errDuplicateCheckIn = errors.New("duplicate check-in")
 
 type checkInRequest struct {
-	SlotID    string  `json:"slot_id"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
+	SlotIDs   []string `json:"slot_ids"`
+	Latitude  float64  `json:"latitude"`
+	Longitude float64  `json:"longitude"`
 }
 
 type slotRow struct {
@@ -76,8 +81,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.SlotID == "" || req.Latitude < -90 || req.Latitude > 90 || req.Longitude < -180 || req.Longitude > 180 {
-		writeError(w, http.StatusBadRequest, "invalid slot_id or coordinates")
+	slotIDs := dedupe(req.SlotIDs)
+	if len(slotIDs) == 0 || len(slotIDs) > maxSlotsPerCheckIn ||
+		req.Latitude < -90 || req.Latitude > 90 || req.Longitude < -180 || req.Longitude > 180 {
+		writeError(w, http.StatusBadRequest, "invalid slot_ids or coordinates")
 		return
 	}
 
@@ -96,40 +103,71 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slot, err := fetchSlot(r.Context(), req.SlotID)
-	if err != nil {
+	slots, err := fetchSlots(r.Context(), slotIDs)
+	if err != nil || len(slots) != len(slotIDs) {
 		writeError(w, http.StatusNotFound, "slot not found")
 		return
 	}
-	if slot.UserID != userID {
-		writeError(w, http.StatusForbidden, "that slot isn't yours")
-		return
+
+	var windowStart, windowEnd time.Time
+	for i, slot := range slots {
+		if slot.UserID != userID {
+			writeError(w, http.StatusForbidden, "that slot isn't yours")
+			return
+		}
+		start, errStart := time.Parse(time.RFC3339, slot.StartTime)
+		end, errEnd := time.Parse(time.RFC3339, slot.EndTime)
+		if errStart != nil || errEnd != nil {
+			writeError(w, http.StatusInternalServerError, "malformed slot time")
+			return
+		}
+		if i == 0 || start.Before(windowStart) {
+			windowStart = start
+		}
+		if i == 0 || end.After(windowEnd) {
+			windowEnd = end
+		}
 	}
 
-	start, errStart := time.Parse(time.RFC3339, slot.StartTime)
-	end, errEnd := time.Parse(time.RFC3339, slot.EndTime)
-	if errStart != nil || errEnd != nil {
-		writeError(w, http.StatusInternalServerError, "malformed slot time")
-		return
-	}
 	now := time.Now().UTC()
-	windowOpensAt := start.Add(-checkInEarlyGraceMinutes * time.Minute)
-	if now.Before(windowOpensAt) || now.After(end) {
+	windowOpensAt := windowStart.Add(-checkInEarlyGraceMinutes * time.Minute)
+	if now.Before(windowOpensAt) || now.After(windowEnd) {
 		writeError(w, http.StatusBadRequest, "check-in window is not open for this slot")
 		return
 	}
 
-	created, err := insertCheckIn(r.Context(), req.SlotID, userID, req.Latitude, req.Longitude, distance)
-	if err != nil {
-		if errors.Is(err, errDuplicateCheckIn) {
-			writeError(w, http.StatusConflict, "already checked in for this slot")
+	var created []checkInRow
+	for _, slot := range slots {
+		row, err := insertCheckIn(r.Context(), slot.ID, userID, req.Latitude, req.Longitude, distance)
+		if err != nil {
+			if errors.Is(err, errDuplicateCheckIn) {
+				continue // this one's already checked in — not fatal, others may still succeed
+			}
+			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
-		writeError(w, http.StatusBadGateway, err.Error())
+		created = append(created, *row)
+	}
+
+	if len(created) == 0 {
+		writeError(w, http.StatusConflict, "already checked in for this slot")
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, map[string]any{"check_ins": created})
+}
+
+func dedupe(ids []string) []string {
+	seen := make(map[string]bool, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 
 func bearerToken(r *http.Request) string {
@@ -168,10 +206,11 @@ func authenticatedUserID(ctx context.Context, token string) (string, error) {
 	return body.ID, nil
 }
 
-func fetchSlot(ctx context.Context, slotID string) (*slotRow, error) {
+func fetchSlots(ctx context.Context, slotIDs []string) ([]slotRow, error) {
+	inList := "(" + strings.Join(slotIDs, ",") + ")"
 	endpoint := fmt.Sprintf(
-		"%s/rest/v1/office_hours_slots?id=eq.%s&select=id,user_id,start_time,end_time",
-		supabaseURL(), url.QueryEscape(slotID),
+		"%s/rest/v1/office_hours_slots?id=in.%s&select=id,user_id,start_time,end_time",
+		supabaseURL(), url.QueryEscape(inList),
 	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -193,10 +232,7 @@ func fetchSlot(ctx context.Context, slotID string) (*slotRow, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&rows); err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 {
-		return nil, fmt.Errorf("slot not found")
-	}
-	return &rows[0], nil
+	return rows, nil
 }
 
 func insertCheckIn(ctx context.Context, slotID, userID string, lat, lon, distance float64) (*checkInRow, error) {

@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
-import { RECURRING_HORIZON_WEEKS, SLOT_START_HOURS } from "@/lib/config";
+import { MAX_SLOTS_PER_USER_PER_WEEK, RECURRING_HORIZON_WEEKS, SLOT_START_HOURS } from "@/lib/config";
 import { addWeeks, slotStart, startOfWeek, weekDays } from "@/lib/week";
+import { displayNames } from "@/lib/names";
 import type { Database } from "@/lib/supabase/types";
 import { SlotModal } from "@/components/slot-modal";
 
@@ -17,6 +18,18 @@ const DAY_HEADER = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
 });
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const MAX_NAMES_SHOWN = 3;
+
+/** The user's other slot this week adjacent (±1hr) to the given one, if any. */
+function findAdjacentMineSlot(slot: Slot, mineSlots: Slot[]): Slot | undefined {
+  const t = new Date(slot.start_time).getTime();
+  return mineSlots.find((s) => {
+    if (s.id === slot.id) return false;
+    const st = new Date(s.start_time).getTime();
+    return st === t - ONE_HOUR_MS || st === t + ONE_HOUR_MS;
+  });
+}
 
 export function WeeklyGrid({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), []);
@@ -65,10 +78,26 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     },
   );
 
-  const mySlotIds = useMemo(
-    () => slots.filter((s) => s.user_id === userId).map((s) => s.id),
-    [slots, userId],
+  // Every member's display name, fetched once — not scoped to the visible
+  // week, since claimants shown in a cell come from that week's slots but the
+  // name lookup itself is small and week-independent.
+  const { data: members = [] } = useSWR<Database["public"]["Views"]["member_names"]["Row"][]>(
+    ["member_names"] as const,
+    async () => {
+      const { data, error } = await supabase.from("member_names").select("*");
+      if (error) throw error;
+      return data;
+    },
   );
+
+  const namesByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of members) if (m.id) map.set(m.id, m.name ?? "Someone");
+    return map;
+  }, [members]);
+
+  const mySlots = useMemo(() => slots.filter((s) => s.user_id === userId), [slots, userId]);
+  const mySlotIds = useMemo(() => mySlots.map((s) => s.id), [mySlots]);
 
   const { data: checkIns = [], mutate: mutateCheckIns } = useSWR<CheckIn[]>(
     mySlotIds.length ? (["check_ins", ...mySlotIds] as const) : null,
@@ -102,6 +131,12 @@ export function WeeklyGrid({ userId }: { userId: string }) {
   }, [slots]);
 
   async function claim(start: Date, repeatWeekly: boolean) {
+    if (mySlotIds.length >= MAX_SLOTS_PER_USER_PER_WEEK) {
+      throw new Error(
+        `You can only sign up for ${MAX_SLOTS_PER_USER_PER_WEEK} slots per week — release one first.`,
+      );
+    }
+
     const startIso = start.toISOString();
     const end = new Date(start);
     end.setHours(end.getHours() + 1);
@@ -167,7 +202,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     await mutate();
   }
 
-  async function checkIn(slot: Slot, latitude: number, longitude: number) {
+  async function checkIn(slotsToCheckIn: Slot[], latitude: number, longitude: number) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -176,16 +211,22 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     const res = await fetch("/api-go/checkin", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ slot_id: slot.id, latitude, longitude }),
+      body: JSON.stringify({ slot_ids: slotsToCheckIn.map((s) => s.id), latitude, longitude }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Check-in failed (${res.status}).`);
-    await mutateCheckIns((prev = []) => [...prev, body as CheckIn], { revalidate: false });
+    const created = (body.check_ins ?? []) as CheckIn[];
+    await mutateCheckIns((prev = []) => [...prev, ...created], { revalidate: false });
   }
 
   const selectedClaimants = selected ? slotsByStart.get(selected.start.toISOString()) ?? [] : [];
   const selectedMine = selectedClaimants.find((s) => s.user_id === userId);
-  const selectedMyCheckIn = selectedMine ? checkInsBySlotId.get(selectedMine.id) : undefined;
+  const selectedAdjacent = selectedMine ? findAdjacentMineSlot(selectedMine, mySlots) : undefined;
+  const selectedMineSlots = selectedMine
+    ? [selectedMine, ...(selectedAdjacent ? [selectedAdjacent] : [])].sort((a, b) =>
+        a.start_time.localeCompare(b.start_time),
+      )
+    : [];
 
   if (!now || !days) {
     return (
@@ -265,10 +306,16 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                   // partway through the hour.
                   const isPast = end.getTime() <= now.getTime();
 
-                  let label: string;
-                  if (mine) label = othersCount > 0 ? `Yours +${othersCount}` : "Yours";
-                  else if (othersCount > 0) label = `${othersCount} here`;
-                  else label = "Open";
+                  const claimantUserIds = claimants
+                    .map((c) => c.user_id)
+                    .filter((id): id is string => !!id);
+                  const names = displayNames(claimantUserIds, namesByUserId);
+                  const label =
+                    names.length === 0
+                      ? "Open"
+                      : names.length <= MAX_NAMES_SHOWN
+                        ? names.join(", ")
+                        : `${names.slice(0, MAX_NAMES_SHOWN).join(", ")} +${names.length - MAX_NAMES_SHOWN}`;
 
                   return (
                     <td key={key} className="p-1">
@@ -313,8 +360,9 @@ export function WeeklyGrid({ userId }: { userId: string }) {
           start={selected.start}
           end={selected.end}
           claimants={selectedClaimants}
-          mine={selectedMine}
-          myCheckIn={selectedMyCheckIn}
+          mineSlots={selectedMineSlots}
+          namesByUserId={namesByUserId}
+          checkInsBySlotId={checkInsBySlotId}
           onClose={() => setSelected(null)}
           onClaim={async (start, repeatWeekly) => {
             setGlobalError(null);
@@ -345,7 +393,7 @@ function LegendSwatch({ className, label }: { className: string; label: string }
 
 function cellClass(isPast: boolean, isMine: boolean, hasOthers: boolean) {
   const base =
-    "w-full rounded-md border px-1 py-2 text-[11px] transition-colors disabled:cursor-not-allowed sm:text-xs";
+    "w-full rounded-md border px-1 py-2 text-[11px] leading-tight transition-colors disabled:cursor-not-allowed sm:text-xs";
 
   if (isPast) {
     return `${base} border-transparent text-zinc-300 dark:text-zinc-700`;

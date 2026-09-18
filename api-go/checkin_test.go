@@ -15,7 +15,9 @@ import (
 // GET /auth/v1/user, GET /rest/v1/office_hours_slots, POST /rest/v1/check_ins.
 // The handler reads its base URL from NEXT_PUBLIC_SUPABASE_URL, so pointing
 // that env var at this test server is what lets checkin.go run against it.
-func fakeSupabase(t *testing.T, slot slotRow, authUserID string, alreadyCheckedIn bool) *httptest.Server {
+// alreadyCheckedIn lists slot ids that should look already-checked-in (409
+// path), simulating a per-slot 23505 unique violation.
+func fakeSupabase(t *testing.T, slots []slotRow, authUserID string, alreadyCheckedIn map[string]bool) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 
@@ -28,20 +30,24 @@ func fakeSupabase(t *testing.T, slot slotRow, authUserID string, alreadyCheckedI
 	})
 
 	mux.HandleFunc("/rest/v1/office_hours_slots", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode([]slotRow{slot})
+		_ = json.NewEncoder(w).Encode(slots)
 	})
 
 	mux.HandleFunc("/rest/v1/check_ins", func(w http.ResponseWriter, r *http.Request) {
-		if alreadyCheckedIn {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		slotID, _ := body["slot_id"].(string)
+
+		if alreadyCheckedIn[slotID] {
 			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"code":"23505","message":"duplicate key value violates unique constraint"}`))
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode([]checkInRow{{
-			ID:     "check-in-1",
-			SlotID: slot.ID,
-			UserID: slot.UserID,
+			ID:     "check-in-" + slotID,
+			SlotID: slotID,
+			UserID: authUserID,
 			Method: "geolocation",
 		}})
 	})
@@ -58,6 +64,7 @@ const (
 	testUserID    = "11111111-1111-1111-1111-111111111111"
 	testOtherUser = "22222222-2222-2222-2222-222222222222"
 	testSlotID    = "33333333-3333-3333-3333-333333333333"
+	testSlotID2   = "44444444-4444-4444-4444-444444444444"
 
 	// Near ASU's Tempe campus — well within CheckInRadiusMiles of the default
 	// office coordinates used elsewhere is not required; these tests set the
@@ -78,6 +85,25 @@ func currentSlot(t *testing.T) slotRow {
 	}
 }
 
+// backToBackSlots returns the current slot plus a second one immediately
+// following it — the shape a "repeat weekly" or one-off pair of adjacent
+// claims would have.
+func backToBackSlots(t *testing.T) []slotRow {
+	t.Helper()
+	first := currentSlot(t)
+	firstEnd, err := time.Parse(time.RFC3339, first.EndTime)
+	if err != nil {
+		t.Fatalf("parse first end: %v", err)
+	}
+	second := slotRow{
+		ID:        testSlotID2,
+		UserID:    testUserID,
+		StartTime: first.EndTime,
+		EndTime:   firstEnd.Add(time.Hour).Format(time.RFC3339),
+	}
+	return []slotRow{first, second}
+}
+
 func doCheckInRequest(t *testing.T, body map[string]any, bearer string) *httptest.ResponseRecorder {
 	t.Helper()
 	payload, err := json.Marshal(body)
@@ -96,29 +122,88 @@ func doCheckInRequest(t *testing.T, body map[string]any, bearer string) *httptes
 func TestCheckIn_HappyPath(t *testing.T) {
 	t.Setenv("OFFICE_LATITUDE", "33.4242")
 	t.Setenv("OFFICE_LONGITUDE", "-111.9281")
-	fakeSupabase(t, currentSlot(t), testUserID, false)
+	fakeSupabase(t, []slotRow{currentSlot(t)}, testUserID, nil)
 
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": officeLat, "longitude": officeLon,
+		"slot_ids": []string{testSlotID}, "latitude": officeLat, "longitude": officeLon,
 	}, "valid-token")
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var got checkInRow
+	var got struct {
+		CheckIns []checkInRow `json:"check_ins"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.SlotID != testSlotID {
-		t.Errorf("expected slot_id %s, got %s", testSlotID, got.SlotID)
+	if len(got.CheckIns) != 1 || got.CheckIns[0].SlotID != testSlotID {
+		t.Errorf("expected one check-in for slot %s, got %+v", testSlotID, got.CheckIns)
+	}
+}
+
+func TestCheckIn_BackToBack_BothCredited(t *testing.T) {
+	t.Setenv("OFFICE_LATITUDE", "33.4242")
+	t.Setenv("OFFICE_LONGITUDE", "-111.9281")
+	fakeSupabase(t, backToBackSlots(t), testUserID, nil)
+
+	rec := doCheckInRequest(t, map[string]any{
+		"slot_ids": []string{testSlotID, testSlotID2}, "latitude": officeLat, "longitude": officeLon,
+	}, "valid-token")
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		CheckIns []checkInRow `json:"check_ins"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got.CheckIns) != 2 {
+		t.Fatalf("expected both slots credited from one check-in, got %+v", got.CheckIns)
+	}
+}
+
+func TestCheckIn_BackToBack_PartialDuplicate(t *testing.T) {
+	t.Setenv("OFFICE_LATITUDE", "33.4242")
+	t.Setenv("OFFICE_LONGITUDE", "-111.9281")
+	fakeSupabase(t, backToBackSlots(t), testUserID, map[string]bool{testSlotID: true})
+
+	rec := doCheckInRequest(t, map[string]any{
+		"slot_ids": []string{testSlotID, testSlotID2}, "latitude": officeLat, "longitude": officeLon,
+	}, "valid-token")
+
+	// One of the two was already checked in — that's not fatal as long as the
+	// other one succeeds.
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 (partial success), got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		CheckIns []checkInRow `json:"check_ins"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if len(got.CheckIns) != 1 || got.CheckIns[0].SlotID != testSlotID2 {
+		t.Fatalf("expected only the not-yet-checked-in slot credited, got %+v", got.CheckIns)
+	}
+}
+
+func TestCheckIn_TooManySlotIDs(t *testing.T) {
+	fakeSupabase(t, backToBackSlots(t), testUserID, nil)
+	rec := doCheckInRequest(t, map[string]any{
+		"slot_ids": []string{testSlotID, testSlotID2, "55555555-5555-5555-5555-555555555555"},
+		"latitude": officeLat, "longitude": officeLon,
+	}, "valid-token")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for more than 2 slot_ids, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
 func TestCheckIn_MissingBearerToken(t *testing.T) {
-	fakeSupabase(t, currentSlot(t), testUserID, false)
+	fakeSupabase(t, []slotRow{currentSlot(t)}, testUserID, nil)
 
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": officeLat, "longitude": officeLon,
+		"slot_ids": []string{testSlotID}, "latitude": officeLat, "longitude": officeLon,
 	}, "")
 
 	if rec.Code != http.StatusUnauthorized {
@@ -127,10 +212,10 @@ func TestCheckIn_MissingBearerToken(t *testing.T) {
 }
 
 func TestCheckIn_InvalidToken(t *testing.T) {
-	fakeSupabase(t, currentSlot(t), "", false)
+	fakeSupabase(t, []slotRow{currentSlot(t)}, "", nil)
 
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": officeLat, "longitude": officeLon,
+		"slot_ids": []string{testSlotID}, "latitude": officeLat, "longitude": officeLon,
 	}, "expired-token")
 
 	if rec.Code != http.StatusUnauthorized {
@@ -143,10 +228,10 @@ func TestCheckIn_WrongOwner(t *testing.T) {
 	t.Setenv("OFFICE_LONGITUDE", "-111.9281")
 	slot := currentSlot(t)
 	slot.UserID = testOtherUser
-	fakeSupabase(t, slot, testUserID, false)
+	fakeSupabase(t, []slotRow{slot}, testUserID, nil)
 
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": officeLat, "longitude": officeLon,
+		"slot_ids": []string{testSlotID}, "latitude": officeLat, "longitude": officeLon,
 	}, "valid-token")
 
 	if rec.Code != http.StatusForbidden {
@@ -157,11 +242,11 @@ func TestCheckIn_WrongOwner(t *testing.T) {
 func TestCheckIn_TooFarAway(t *testing.T) {
 	t.Setenv("OFFICE_LATITUDE", "33.4242")
 	t.Setenv("OFFICE_LONGITUDE", "-111.9281")
-	fakeSupabase(t, currentSlot(t), testUserID, false)
+	fakeSupabase(t, []slotRow{currentSlot(t)}, testUserID, nil)
 
 	// New York City — nowhere near the Tempe office coordinates above.
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": 40.7128, "longitude": -74.0060,
+		"slot_ids": []string{testSlotID}, "latitude": 40.7128, "longitude": -74.0060,
 	}, "valid-token")
 
 	if rec.Code != http.StatusForbidden {
@@ -184,10 +269,10 @@ func TestCheckIn_OutsideTimeWindow(t *testing.T) {
 		StartTime: future.Format(time.RFC3339),
 		EndTime:   future.Add(time.Hour).Format(time.RFC3339),
 	}
-	fakeSupabase(t, slot, testUserID, false)
+	fakeSupabase(t, []slotRow{slot}, testUserID, nil)
 
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": officeLat, "longitude": officeLon,
+		"slot_ids": []string{testSlotID}, "latitude": officeLat, "longitude": officeLon,
 	}, "valid-token")
 
 	if rec.Code != http.StatusBadRequest {
@@ -198,10 +283,10 @@ func TestCheckIn_OutsideTimeWindow(t *testing.T) {
 func TestCheckIn_AlreadyCheckedIn(t *testing.T) {
 	t.Setenv("OFFICE_LATITUDE", "33.4242")
 	t.Setenv("OFFICE_LONGITUDE", "-111.9281")
-	fakeSupabase(t, currentSlot(t), testUserID, true)
+	fakeSupabase(t, []slotRow{currentSlot(t)}, testUserID, map[string]bool{testSlotID: true})
 
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": officeLat, "longitude": officeLon,
+		"slot_ids": []string{testSlotID}, "latitude": officeLat, "longitude": officeLon,
 	}, "valid-token")
 
 	if rec.Code != http.StatusConflict {
@@ -219,9 +304,9 @@ func TestCheckIn_MethodNotAllowed(t *testing.T) {
 }
 
 func TestCheckIn_InvalidCoordinates(t *testing.T) {
-	fakeSupabase(t, currentSlot(t), testUserID, false)
+	fakeSupabase(t, []slotRow{currentSlot(t)}, testUserID, nil)
 	rec := doCheckInRequest(t, map[string]any{
-		"slot_id": testSlotID, "latitude": 200.0, "longitude": 0.0,
+		"slot_ids": []string{testSlotID}, "latitude": 200.0, "longitude": 0.0,
 	}, "valid-token")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())

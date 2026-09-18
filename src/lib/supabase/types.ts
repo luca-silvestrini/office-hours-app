@@ -1,5 +1,5 @@
 /**
- * Hand-maintained database types, matching supabase/migrations/0001-0003.
+ * Hand-maintained database types, matching supabase/migrations/0001-0004.
  * Regenerate with `supabase gen types typescript` once the CLI is linked if you
  * prefer generated types.
  */
@@ -10,9 +10,9 @@ export interface Database {
   public: {
     Tables: {
       users: {
-        Row: { id: string; email: string; created_at: string };
-        Insert: { id: string; email: string; created_at?: string };
-        Update: { id?: string; email?: string; created_at?: string };
+        Row: { id: string; email: string; name: string | null; created_at: string };
+        Insert: { id: string; email: string; name?: string | null; created_at?: string };
+        Update: { id?: string; email?: string; name?: string | null; created_at?: string };
         Relationships: [];
       };
       office_hours_slots: {
@@ -88,7 +88,12 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      member_names: {
+        Row: { id: string | null; name: string | null };
+        Relationships: [];
+      };
+    };
     Functions: Record<string, never>;
     Enums: {
       slot_status: SlotStatus;
