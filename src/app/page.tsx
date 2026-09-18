@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { WeeklyGrid } from "@/components/weekly-grid";
+import { BrandMark } from "@/components/brand-mark";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -14,51 +15,64 @@ export default async function Home() {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("email, created_at")
+    .select("email, name")
     .eq("id", user.id)
     .maybeSingle();
 
+  const displayName = profile?.name?.trim() || profile?.email || user.email;
+  const initial = (displayName ?? "?").charAt(0).toUpperCase();
+
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-16">
-      <header className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Office Hours</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Signed in as{" "}
-            <span className="font-medium">{profile?.email ?? user.email}</span>
-          </p>
+    <>
+      <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
+          <BrandMark />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold leading-tight tracking-tight">
+              Office Hours
+            </p>
+            <p className="truncate text-xs leading-tight text-ink-muted">
+              All Saints Newman Center
+            </p>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand-soft-ink">
+                {initial}
+              </span>
+              <span className="max-w-[16ch] truncate text-sm text-ink-muted">{displayName}</span>
+            </div>
+            <form action="/auth/signout" method="post">
+              <button
+                type="submit"
+                className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
-        <form action="/auth/signout" method="post">
-          <button
-            type="submit"
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            Sign out
-          </button>
-        </form>
       </header>
 
-      <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Auth check
-        </h2>
-        <dl className="mt-3 grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
-          <dt className="text-zinc-500">User ID</dt>
-          <dd className="font-mono text-xs break-all">{user.id}</dd>
-          <dt className="text-zinc-500">Email</dt>
-          <dd>{user.email}</dd>
-          <dt className="text-zinc-500">Profile row</dt>
-          <dd>
-            {profile
-              ? `synced (created ${new Date(profile.created_at).toLocaleString()})`
-              : "not found — check the on_auth_user_created trigger"}
-          </dd>
-        </dl>
-      </section>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <div className="mb-7">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Hi{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""} 👋
+          </h1>
+          <p className="mt-1.5 text-sm text-ink-muted">
+            Pick the hours you&apos;ll be at the Newman Center, then check in when you arrive.
+          </p>
+        </div>
 
-      <WeeklyGrid userId={user.id} />
+        <WeeklyGrid userId={user.id} />
+      </main>
 
-      <p className="text-sm text-zinc-500">Next up: Vercel Cron + reminder emails.</p>
-    </main>
+      <footer className="border-t border-line py-5">
+        <p className="mx-auto w-full max-w-6xl px-4 text-xs text-ink-faint sm:px-6">
+          All Saints Catholic Newman Center · 230 E University Dr, Tempe
+        </p>
+      </footer>
+    </>
   );
 }

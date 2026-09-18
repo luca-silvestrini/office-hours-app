@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_SLOTS_PER_USER_PER_WEEK, RECURRING_HORIZON_WEEKS, SLOT_START_HOURS } from "@/lib/config";
@@ -13,11 +13,9 @@ type Slot = Database["public"]["Tables"]["office_hours_slots"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 
 const HOUR_LABEL = new Intl.DateTimeFormat(undefined, { hour: "numeric" });
-const DAY_HEADER = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
+const WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+const DAY_NUM = new Intl.DateTimeFormat(undefined, { day: "numeric" });
+const RANGE_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const MAX_NAMES_SHOWN = 3;
 
@@ -31,6 +29,14 @@ function findAdjacentMineSlot(slot: Slot, mineSlots: Slot[]): Slot | undefined {
   });
 }
 
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 export function WeeklyGrid({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -38,6 +44,8 @@ export function WeeklyGrid({ userId }: { userId: string }) {
   const [selected, setSelected] = useState<{ start: Date; end: Date; anchorRect: DOMRect } | null>(
     null,
   );
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const todayColRef = useRef<HTMLTableCellElement>(null);
 
   // "Now" must never be computed during Next.js's server pre-render (Vercel's
   // functions run in UTC) — the week grid's hours are relative to the
@@ -53,6 +61,18 @@ export function WeeklyGrid({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(new Date());
   }, []);
+
+  // On narrow screens the 7-day grid overflows horizontally; without this you
+  // land on Sunday and have to scroll past days that already happened.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const col = todayColRef.current;
+    if (!scroller || !col) return;
+    scroller.scrollLeft = Math.max(
+      0,
+      col.offsetLeft - scroller.clientWidth / 2 + col.clientWidth / 2,
+    );
+  }, [weekOffset, now]);
 
   const weekStart = useMemo(() => (now ? addWeeks(startOfWeek(now), weekOffset) : null), [now, weekOffset]);
   const days = useMemo(() => (weekStart ? weekDays(weekStart) : null), [weekStart]);
@@ -228,69 +248,113 @@ export function WeeklyGrid({ userId }: { userId: string }) {
       )
     : [];
 
-  if (!now || !days) {
+  if (!now || !days || !weekStart) {
     return (
-      <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Weekly schedule
-        </h2>
-        <p className="mt-3 text-xs text-zinc-500">Loading…</p>
+      <section className="rounded-2xl border border-line bg-surface p-6 shadow-card">
+        <div className="h-5 w-40 animate-pulse rounded bg-surface-sunken" />
+        <div className="mt-5 grid grid-cols-7 gap-2">
+          {Array.from({ length: 28 }).map((_, i) => (
+            <div key={i} className="h-9 animate-pulse rounded-lg bg-surface-sunken" />
+          ))}
+        </div>
       </section>
     );
   }
 
+  const claimedCount = mySlotIds.length;
+  const atCap = claimedCount >= MAX_SLOTS_PER_USER_PER_WEEK;
+
   return (
-    <section className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Weekly schedule
-        </h2>
-        <div className="flex items-center gap-2 text-sm">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+      {/* Card header: title + this-week status, then week navigation */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-5">
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-semibold tracking-tight">Weekly schedule</h2>
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              atCap
+                ? "bg-gold-soft text-gold-soft-ink"
+                : "bg-surface-sunken text-ink-muted"
+            }`}
+          >
+            {claimedCount} of {MAX_SLOTS_PER_USER_PER_WEEK} this week
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {weekOffset !== 0 && (
+            <button
+              type="button"
+              onClick={() => setWeekOffset(0)}
+              className="mr-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-brand-soft-ink transition-colors hover:bg-brand-soft"
+            >
+              Today
+            </button>
+          )}
           <button
             type="button"
+            aria-label="Previous week"
             onClick={() => setWeekOffset((w) => w - 1)}
-            className="rounded-md border border-zinc-300 px-2 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className="rounded-lg border border-line p-1.5 text-ink-muted transition-colors hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
           >
-            ← Prev
+            <ChevronIcon direction="left" />
           </button>
-          <span className="text-zinc-500">
-            {DAY_HEADER.format(days[0])} – {DAY_HEADER.format(days[6])}
+          <span className="min-w-[8.5rem] text-center text-sm font-medium tabular-nums">
+            {RANGE_LABEL.format(days[0])} – {RANGE_LABEL.format(days[6])}
           </span>
           <button
             type="button"
+            aria-label="Next week"
             onClick={() => setWeekOffset((w) => w + 1)}
-            className="rounded-md border border-zinc-300 px-2 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className="rounded-lg border border-line p-1.5 text-ink-muted transition-colors hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
           >
-            Next →
+            <ChevronIcon direction="right" />
           </button>
         </div>
       </div>
 
       {(globalError || fetchError) && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+        <p className="mx-4 mt-4 rounded-lg border border-bad-soft-line bg-bad-soft px-3 py-2 text-sm text-bad sm:mx-5">
           {globalError ?? "Couldn't load the schedule. Try refreshing."}
         </p>
       )}
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full table-fixed border-collapse text-sm">
+      <div ref={scrollerRef} className="overflow-x-auto px-2 pb-2 pt-3 sm:px-3">
+        <table className="w-full min-w-[42rem] table-fixed border-separate border-spacing-x-1 border-spacing-y-1">
           <thead>
             <tr>
-              <th className="w-16" />
-              {days.map((day) => (
-                <th
-                  key={day.toISOString()}
-                  className="p-2 text-center text-xs font-medium text-zinc-500 sm:text-sm"
-                >
-                  {DAY_HEADER.format(day)}
-                </th>
-              ))}
+              <th className="sticky left-0 z-10 w-12 bg-surface sm:w-16" />
+              {days.map((day) => {
+                const today = isSameDay(day, now);
+                return (
+                  <th
+                    key={day.toISOString()}
+                    ref={today ? todayColRef : undefined}
+                    className="pb-1 text-center align-bottom"
+                  >
+                    <span
+                      className={`text-[11px] font-medium uppercase tracking-wide ${
+                        today ? "text-brand-soft-ink" : "text-ink-faint"
+                      }`}
+                    >
+                      {WEEKDAY.format(day)}
+                    </span>
+                    <span
+                      className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums ${
+                        today ? "bg-brand text-brand-on shadow-card" : "text-ink"
+                      }`}
+                    >
+                      {DAY_NUM.format(day)}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {SLOT_START_HOURS.map((hour) => (
               <tr key={hour}>
-                <td className="p-1 text-xs text-zinc-500">
+                <td className="sticky left-0 z-10 bg-surface pr-2 text-right align-middle text-[11px] font-medium tabular-nums text-ink-faint">
                   {HOUR_LABEL.format(slotStart(days[0], hour))}
                 </td>
                 {days.map((day) => {
@@ -305,6 +369,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                   // start_time — it's still "now" for the person checking in
                   // partway through the hour.
                   const isPast = end.getTime() <= now.getTime();
+                  const checkedIn = mine ? checkInsBySlotId.has(mine.id) : false;
 
                   const claimantUserIds = claimants
                     .map((c) => c.user_id)
@@ -312,13 +377,15 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                   const names = displayNames(claimantUserIds, namesByUserId);
                   const label =
                     names.length === 0
-                      ? "Open"
+                      ? isPast
+                        ? ""
+                        : "Open"
                       : names.length <= MAX_NAMES_SHOWN
                         ? names.join(", ")
                         : `${names.slice(0, MAX_NAMES_SHOWN).join(", ")} +${names.length - MAX_NAMES_SHOWN}`;
 
                   return (
-                    <td key={key} className="p-1">
+                    <td key={key}>
                       <button
                         type="button"
                         data-slot={key}
@@ -328,7 +395,12 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                         }
                         className={cellClass(isPast, !!mine, othersCount > 0)}
                       >
-                        {label}
+                        <span className="line-clamp-2">{label}</span>
+                        {checkedIn && !isPast && (
+                          <span className="mt-0.5 flex items-center justify-center gap-0.5 text-[10px] font-semibold text-ok">
+                            <CheckIcon /> in
+                          </span>
+                        )}
                       </button>
                     </td>
                   );
@@ -339,19 +411,15 @@ export function WeeklyGrid({ userId }: { userId: string }) {
         </table>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <LegendSwatch className="border-dashed border-zinc-300 dark:border-zinc-700" label="Open" />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-4 py-3 text-xs text-ink-muted sm:px-5">
+        <LegendSwatch className="border-dashed border-line-strong" label="Open" />
         <LegendSwatch
-          className="border-sky-300 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/40"
-          label="Others signed up"
+          className="border-brand-soft-line bg-brand-soft"
+          label="Someone signed up"
         />
-        <LegendSwatch
-          className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40"
-          label="Yours"
-        />
+        <LegendSwatch className="border-gold-soft-line bg-gold-soft" label="Yours" />
+        {isLoading && <span className="ml-auto text-ink-faint">Loading…</span>}
       </div>
-
-      {isLoading && <p className="mt-3 text-xs text-zinc-500">Loading…</p>}
 
       {selected && (
         <SlotModal
@@ -363,6 +431,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
           mineSlots={selectedMineSlots}
           namesByUserId={namesByUserId}
           checkInsBySlotId={checkInsBySlotId}
+          atCap={atCap}
           onClose={() => setSelected(null)}
           onClaim={async (start, repeatWeekly) => {
             setGlobalError(null);
@@ -382,10 +451,38 @@ export function WeeklyGrid({ userId }: { userId: string }) {
   );
 }
 
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+      <path
+        d={direction === "left" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" aria-hidden="true">
+      <path
+        d="M20 6L9 17l-5-5"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function LegendSwatch({ className, label }: { className: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className={`h-3 w-3 rounded-sm border ${className}`} />
+      <span className={`h-3 w-3 rounded border ${className}`} />
       {label}
     </span>
   );
@@ -393,18 +490,20 @@ function LegendSwatch({ className, label }: { className: string; label: string }
 
 function cellClass(isPast: boolean, isMine: boolean, hasOthers: boolean) {
   const base =
-    "w-full rounded-md border px-1 py-2 text-[11px] leading-tight transition-colors disabled:cursor-not-allowed sm:text-xs";
+    "flex w-full flex-col items-center justify-center rounded-lg border px-1 py-2 text-[11px] font-medium leading-tight transition-colors disabled:cursor-not-allowed sm:text-xs";
 
   if (isPast) {
-    return `${base} border-transparent text-zinc-300 dark:text-zinc-700`;
+    // Recessive, but still a visible box — an entirely blank column reads as
+    // broken rather than "already happened".
+    return `${base} border-line/70 bg-surface-sunken/60 text-ink-faint`;
   }
   if (isMine) {
-    return `${base} border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300`;
+    return `${base} border-gold-soft-line bg-gold-soft text-gold-soft-ink hover:border-gold-strong`;
   }
   if (hasOthers) {
-    return `${base} border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300`;
+    return `${base} border-brand-soft-line bg-brand-soft text-brand-soft-ink hover:border-brand-ring`;
   }
-  return `${base} border-dashed border-zinc-300 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-500 dark:hover:text-zinc-200`;
+  return `${base} border-dashed border-line-strong text-ink-faint hover:border-brand-ring hover:bg-brand-soft hover:text-brand-soft-ink`;
 }
 
 export default WeeklyGrid;

@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Office Hours",
-  description: "Self-scheduling, magic-link sign-in, and location-verified check-in for office hours.",
+  title: "Office Hours · All Saints Newman Center",
+  description:
+    "Sign up for office hours and check in from the Newman Center.",
 };
 
 export default function RootLayout({
@@ -25,7 +26,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="app-canvas flex min-h-full flex-col bg-bg text-ink">
+        {children}
+      </body>
     </html>
   );
 }

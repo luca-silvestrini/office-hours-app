@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CHECK_IN_WINDOW_EARLY_MINUTES } from "@/lib/config";
+import { CHECK_IN_WINDOW_EARLY_MINUTES, MAX_SLOTS_PER_USER_PER_WEEK } from "@/lib/config";
 import { displayNames } from "@/lib/names";
 import type { Database } from "@/lib/supabase/types";
 
@@ -15,7 +15,7 @@ const DATE_HEADER = new Intl.DateTimeFormat(undefined, {
 });
 const TIME_LABEL = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
-const GAP = 8;
+const GAP = 10;
 
 /** Where to place the popover relative to the clicked cell, clamped on-screen. */
 function computePosition(anchor: DOMRect, popover: { width: number; height: number }) {
@@ -39,6 +39,7 @@ export function SlotModal({
   mineSlots,
   namesByUserId,
   checkInsBySlotId,
+  atCap,
   onClose,
   onClaim,
   onReleaseOne,
@@ -53,6 +54,7 @@ export function SlotModal({
   mineSlots: Slot[];
   namesByUserId: Map<string, string>;
   checkInsBySlotId: Map<string, CheckIn>;
+  atCap: boolean;
   onClose: () => void;
   onClaim: (start: Date, repeatWeekly: boolean) => Promise<void>;
   onReleaseOne: (slot: Slot) => Promise<void>;
@@ -156,6 +158,9 @@ export function SlotModal({
     );
   }
 
+  const secondaryBtn =
+    "flex-1 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-sunken disabled:opacity-60";
+
   return (
     <div
       ref={popoverRef}
@@ -167,68 +172,93 @@ export function SlotModal({
         left: position?.left ?? anchorRect.left,
         visibility: position ? "visible" : "hidden",
       }}
-      className="z-50 w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-5 text-zinc-900 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+      className="z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-hidden rounded-xl border border-line bg-surface text-ink shadow-pop"
     >
-      <h2 className="text-base font-semibold">{DATE_HEADER.format(start)}</h2>
-      <p className="mt-0.5 text-sm text-zinc-500">
-        {TIME_LABEL.format(start)} – {TIME_LABEL.format(end)}
-      </p>
-
-      {error && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
-          {error}
+      <div className="border-b border-line bg-surface-sunken px-4 py-3">
+        <p className="text-sm font-semibold tracking-tight">{DATE_HEADER.format(start)}</p>
+        <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
+          {TIME_LABEL.format(start)} – {TIME_LABEL.format(end)}
         </p>
-      )}
+      </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="space-y-3 px-4 py-4">
+        {error && (
+          <p className="rounded-lg border border-bad-soft-line bg-bad-soft px-3 py-2 text-sm text-bad">
+            {error}
+          </p>
+        )}
+
         {otherNames.length > 0 && (
-          <p className="text-sm text-zinc-500">Also signed up: {otherNames.join(", ")}</p>
+          <div className="rounded-lg border border-brand-soft-line bg-brand-soft px-3 py-2">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-brand-soft-ink/80">
+              Also signed up
+            </p>
+            <p className="mt-0.5 text-sm text-brand-soft-ink">{otherNames.join(", ")}</p>
+          </div>
         )}
 
-        {mineSlots.length === 0 && (
-          <>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={repeatWeekly}
-                onChange={(e) => setRepeatWeekly(e.target.checked)}
-              />
-              Repeat weekly
-            </label>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run(() => onClaim(start, repeatWeekly))}
-              className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              {busy ? "Claiming…" : "Claim this slot"}
-            </button>
-          </>
-        )}
+        {mineSlots.length === 0 &&
+          (atCap ? (
+            <p className="rounded-lg border border-gold-soft-line bg-gold-soft px-3 py-2 text-sm text-gold-soft-ink">
+              You already have {MAX_SLOTS_PER_USER_PER_WEEK} slots this week. Release one to sign up
+              for a different hour.
+            </p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2.5 rounded-lg border border-line px-3 py-2.5 text-sm transition-colors hover:bg-surface-sunken">
+                <input
+                  type="checkbox"
+                  checked={repeatWeekly}
+                  onChange={(e) => setRepeatWeekly(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--brand)]"
+                />
+                <span>
+                  Repeat weekly
+                  <span className="block text-xs text-ink-muted">Same hour every week</span>
+                </span>
+              </label>
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(() => onClaim(start, repeatWeekly))}
+                className="w-full rounded-lg bg-brand px-3 py-2.5 text-sm font-semibold text-brand-on transition-colors hover:bg-brand-hover disabled:opacity-60"
+              >
+                {busy ? "Signing up…" : "Sign up for this hour"}
+              </button>
+            </>
+          ))}
 
         {mineSlots.map((slot) => (
-          <div key={slot.id}>
-            <p className="text-sm text-emerald-600 dark:text-emerald-400">
-              You&apos;re signed up for {TIME_LABEL.format(new Date(slot.start_time))} –{" "}
-              {TIME_LABEL.format(new Date(slot.end_time))}.
-            </p>
+          <div key={slot.id} className="rounded-lg border border-gold-soft-line bg-gold-soft p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium tabular-nums text-gold-soft-ink">
+                {TIME_LABEL.format(new Date(slot.start_time))} –{" "}
+                {TIME_LABEL.format(new Date(slot.end_time))}
+              </p>
+              {slot.recurring_claim_id && (
+                <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
+                  Weekly
+                </span>
+              )}
+            </div>
             {slot.recurring_claim_id ? (
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2.5 flex gap-2">
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => run(() => onReleaseOne(slot))}
-                  className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  className={secondaryBtn}
                 >
-                  Release this occurrence
+                  Just this one
                 </button>
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => run(() => onReleaseThisAndFuture(slot))}
-                  className="flex-1 rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
+                  className="flex-1 rounded-lg border border-bad-soft-line px-3 py-2 text-sm font-medium text-bad transition-colors hover:bg-bad-soft disabled:opacity-60"
                 >
-                  Release this and all future
+                  This &amp; future
                 </button>
               </div>
             ) : (
@@ -236,32 +266,52 @@ export function SlotModal({
                 type="button"
                 disabled={busy}
                 onClick={() => run(() => onReleaseOne(slot))}
-                className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className={`mt-2.5 w-full ${secondaryBtn}`}
               >
-                Release
+                Release this hour
               </button>
             )}
           </div>
         ))}
 
         {checkInWindowOpen && (
-          <div className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+          <div className="rounded-lg border border-line bg-surface-sunken p-3">
             {mineSlots.length === 2 && (
-              <p className="mb-2 text-xs text-zinc-500">
-                Back-to-back — one check-in covers both {TIME_LABEL.format(windowStart)} –{" "}
+              <p className="mb-2 text-xs text-ink-muted">
+                Back-to-back — one check-in covers {TIME_LABEL.format(windowStart)} –{" "}
                 {TIME_LABEL.format(windowEnd)}.
               </p>
             )}
             {allCheckedIn ? (
-              <p className="text-sm text-emerald-600 dark:text-emerald-400">Checked in ✓</p>
+              <p className="flex items-center justify-center gap-1.5 text-sm font-medium text-ok">
+                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                  <path
+                    d="M20 6L9 17l-5-5"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Checked in
+              </p>
             ) : (
               <button
                 type="button"
                 disabled={busy}
                 onClick={handleCheckIn}
-                className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-ok px-3 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {busy ? "Checking in…" : "Check In"}
+                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                  <path
+                    d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="12" cy="10" r="2.4" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                {busy ? "Checking in…" : "Check in"}
               </button>
             )}
           </div>

@@ -4,16 +4,19 @@ import { Suspense, useState } from "react";
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signUp, logIn, type AuthState } from "./actions";
+import { BrandMark } from "@/components/brand-mark";
 
 const initialState: AuthState = { status: "idle" };
 
-const inputClass =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900";
+const fieldClass =
+  "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink shadow-xs outline-none transition-colors placeholder:text-ink-faint focus:border-brand-ring";
+
+const labelClass = "block text-xs font-medium uppercase tracking-wide text-ink-muted";
 
 function AuthForm() {
   const params = useSearchParams();
   const redirectTo = params.get("redirectTo") ?? "/";
-  const linkError = params.get("error") === "auth";
+  const sessionError = params.get("error") === "auth";
   const [mode, setMode] = useState<"login" | "signup">("login");
 
   const [signUpState, signUpAction, signUpPending] = useActionState(signUp, initialState);
@@ -24,115 +27,138 @@ function AuthForm() {
   const action = mode === "signup" ? signUpAction : logInAction;
 
   return (
-    <div className="w-full max-w-sm">
-      <h1 className="text-2xl font-semibold tracking-tight">Office Hours</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        {mode === "signup" ? "Create an account to sign up for office hours." : "Sign in to your account."}
-      </p>
-
-      <div className="mt-6 flex gap-1 rounded-md border border-zinc-300 p-1 text-sm dark:border-zinc-700">
-        <button
-          type="button"
-          onClick={() => setMode("login")}
-          className={`flex-1 rounded px-3 py-1.5 transition-colors ${
-            mode === "login"
-              ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-          }`}
-        >
-          Log in
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("signup")}
-          className={`flex-1 rounded px-3 py-1.5 transition-colors ${
-            mode === "signup"
-              ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-              : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-          }`}
-        >
-          Sign up
-        </button>
+    <div className="w-full max-w-[26rem]">
+      <div className="mb-6 flex flex-col items-center text-center">
+        <BrandMark className="h-12 w-12" />
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight">Office Hours</h1>
+        <p className="mt-1 text-sm text-ink-muted">All Saints Catholic Newman Center</p>
       </div>
 
-      {linkError && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
-          Your session expired or was invalid. Please log in again.
+      <div className="rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-7">
+        <div className="flex rounded-lg bg-surface-sunken p-1 text-sm">
+          {(["login", "signup"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                mode === m
+                  ? "bg-surface text-ink shadow-xs"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              {m === "login" ? "Log in" : "Sign up"}
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-5 text-sm text-ink-muted">
+          {mode === "signup"
+            ? "Create an account to start signing up for office hours."
+            : "Welcome back — sign in to manage your hours."}
         </p>
-      )}
 
-      <form action={action} className="mt-6 space-y-3">
-        <input type="hidden" name="redirectTo" value={redirectTo} />
+        {sessionError && (
+          <p className="mt-4 rounded-lg border border-bad-soft-line bg-bad-soft px-3 py-2 text-sm text-bad">
+            Your session expired. Please log in again.
+          </p>
+        )}
 
-        {mode === "signup" && (
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium">
-              Name
+        <form action={action} className="mt-5 space-y-4">
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+
+          {mode === "signup" && (
+            <div className="space-y-1.5">
+              <label htmlFor="name" className={labelClass}>
+                Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                autoComplete="name"
+                required
+                defaultValue={state.name}
+                placeholder="Jane Doe"
+                className={fieldClass}
+              />
+              <p className="text-xs text-ink-faint">
+                Shown to others on the schedule so people know who&apos;s covering each hour.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label htmlFor="email" className={labelClass}>
+              Email
             </label>
             <input
-              id="name"
-              name="name"
-              type="text"
-              autoComplete="name"
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               required
-              defaultValue={state.name}
-              placeholder="Jane Doe"
-              className={`mt-1 ${inputClass}`}
+              defaultValue={state.email}
+              placeholder="you@asu.edu"
+              className={fieldClass}
             />
           </div>
-        )}
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            defaultValue={state.email}
-            placeholder="you@example.com"
-            className={`mt-1 ${inputClass}`}
-          />
-        </div>
+          <div className="space-y-1.5">
+            <label htmlFor="password" className={labelClass}>
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              required
+              placeholder="••••••••"
+              className={fieldClass}
+            />
+            {mode === "signup" && (
+              <p className="text-xs text-ink-faint">At least 6 characters.</p>
+            )}
+          </div>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            required
-            placeholder="••••••••"
-            className={`mt-1 ${inputClass}`}
-          />
-        </div>
+          {state.status === "error" && (
+            <p className="rounded-lg border border-bad-soft-line bg-bad-soft px-3 py-2 text-sm text-bad">
+              {state.message}
+            </p>
+          )}
 
-        {state.status === "error" && (
-          <p className="text-sm text-red-600 dark:text-red-400">{state.message}</p>
-        )}
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full rounded-lg bg-brand px-3 py-2.5 text-sm font-semibold text-brand-on shadow-card transition-colors hover:bg-brand-hover disabled:opacity-60"
+          >
+            {pending ? "Just a moment…" : mode === "signup" ? "Create account" : "Log in"}
+          </button>
+        </form>
+      </div>
 
+      <p className="mt-5 text-center text-xs text-ink-faint">
+        {mode === "signup" ? "Already have an account?" : "Don't have an account yet?"}{" "}
         <button
-          type="submit"
-          disabled={pending}
-          className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          type="button"
+          onClick={() => setMode(mode === "signup" ? "login" : "signup")}
+          className="font-medium text-brand-soft-ink underline-offset-2 hover:underline"
         >
-          {pending ? "…" : mode === "signup" ? "Sign up" : "Log in"}
+          {mode === "signup" ? "Log in" : "Sign up"}
         </button>
-      </form>
+      </p>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
-      <Suspense fallback={<div className="w-full max-w-sm text-sm text-zinc-500">Loading…</div>}>
+    <main className="flex flex-1 items-center justify-center px-4 py-12 sm:py-16">
+      <Suspense
+        fallback={<div className="w-full max-w-[26rem] text-sm text-ink-muted">Loading…</div>}
+      >
         <AuthForm />
       </Suspense>
     </main>

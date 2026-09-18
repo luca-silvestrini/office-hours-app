@@ -1,26 +1,152 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+ * Design tokens — deep blue (primary) + warm gold (accent).
+ * Every value is defined for light first, then redefined under the dark
+ * media query, so utilities built from them swap automatically.
+ * ------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  color-scheme: light;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #f4f7fb;
+  --bg-pattern: rgba(30, 58, 138, 0.04);
+  --surface: #ffffff;
+  --surface-sunken: #f8fafc;
+  --line: #e4e9f2;
+  --line-strong: #cbd5e1;
+
+  --ink: #0f172a;
+  --ink-muted: #64748b;
+  --ink-faint: #94a3b8;
+
+  --brand: #1e3a8a;
+  --brand-hover: #172f70;
+  --brand-on: #ffffff;
+  --brand-ring: #3b82f6;
+  --brand-soft: #eef4ff;
+  --brand-soft-line: #c7dbfe;
+  --brand-soft-ink: #1d4ed8;
+
+  --gold: #b45309;
+  --gold-strong: #d4a017;
+  --gold-soft: #fffaeb;
+  --gold-soft-line: #f5cf6a;
+  --gold-soft-ink: #92400e;
+
+  --ok: #15803d;
+  --ok-soft: #f0fdf4;
+  --ok-soft-line: #bbf7d0;
+
+  --bad: #b91c1c;
+  --bad-soft: #fef2f2;
+  --bad-soft-line: #fecaca;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
+  --shadow-pop: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+
+    --bg: #070b14;
+    --bg-pattern: rgba(96, 165, 250, 0.05);
+    --surface: #0e1524;
+    --surface-sunken: #0b111d;
+    --line: #1c2740;
+    --line-strong: #2d3b57;
+
+    --ink: #e6ecf7;
+    --ink-muted: #94a3b8;
+    --ink-faint: #5b6880;
+
+    --brand: #2563eb;
+    --brand-hover: #1d4ed8;
+    --brand-on: #ffffff;
+    --brand-ring: #60a5fa;
+    --brand-soft: #10203f;
+    --brand-soft-line: #1e3a8a;
+    --brand-soft-ink: #93c5fd;
+
+    --gold: #fbbf24;
+    --gold-strong: #fbbf24;
+    --gold-soft: #2a2008;
+    --gold-soft-line: #8a6514;
+    --gold-soft-ink: #fcd34d;
+
+    --ok: #4ade80;
+    --ok-soft: #062d1b;
+    --ok-soft-line: #15803d;
+
+    --bad: #f87171;
+    --bad-soft: #2b1214;
+    --bad-soft-line: #991b1b;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.5), 0 20px 48px rgba(0, 0, 0, 0.55);
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-on: var(--brand-on);
+  --color-brand-ring: var(--brand-ring);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-line: var(--brand-soft-line);
+  --color-brand-soft-ink: var(--brand-soft-ink);
+
+  --color-gold: var(--gold);
+  --color-gold-strong: var(--gold-strong);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-soft-line: var(--gold-soft-line);
+  --color-gold-soft-ink: var(--gold-soft-ink);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-soft-line: var(--ok-soft-line);
+
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-bad-soft-line: var(--bad-soft-line);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  /* The scaffold used to hard-code Arial here, which silently overrode the
+     Geist font loaded in layout.tsx. */
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+}
+
+/* A faint grid wash so large empty areas don't read as flat white/black. */
+.app-canvas {
+  background-image:
+    linear-gradient(to right, var(--bg-pattern) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--bg-pattern) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Consistent keyboard focus treatment across every interactive element. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
