@@ -250,11 +250,11 @@ export function WeeklyGrid({ userId }: { userId: string }) {
 
   if (!now || !days || !weekStart) {
     return (
-      <section className="rounded-2xl border border-line bg-surface p-6 shadow-card">
-        <div className="h-5 w-40 animate-pulse rounded bg-surface-sunken" />
+      <section className="rounded-2xl border border-[var(--gold-header)]/35 bg-panel p-6 shadow-card">
+        <div className="h-5 w-40 animate-pulse rounded bg-panel-cell" />
         <div className="mt-5 grid grid-cols-7 gap-2">
           {Array.from({ length: 28 }).map((_, i) => (
-            <div key={i} className="h-9 animate-pulse rounded-lg bg-surface-sunken" />
+            <div key={i} className="h-9 animate-pulse rounded-lg bg-panel-cell" />
           ))}
         </div>
       </section>
@@ -265,16 +265,16 @@ export function WeeklyGrid({ userId }: { userId: string }) {
   const atCap = claimedCount >= MAX_SLOTS_PER_USER_PER_WEEK;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+    <section className="overflow-hidden rounded-2xl border border-[var(--gold-header)]/35 bg-panel text-panel-ink shadow-card">
       {/* Card header: title + this-week status, then week navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-panel-line px-4 py-4 sm:px-5">
         <div className="flex items-center gap-3">
           <h2 className="font-display text-xl font-semibold tracking-tight">Weekly schedule</h2>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
               atCap
-                ? "bg-gold-soft text-gold-soft-ink"
-                : "bg-surface-sunken text-ink-muted"
+                ? "bg-gold-fill text-gold-on"
+                : "bg-panel-cell text-panel-ink-soft"
             }`}
           >
             {claimedCount} of {MAX_SLOTS_PER_USER_PER_WEEK} this week
@@ -286,7 +286,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
             <button
               type="button"
               onClick={() => setWeekOffset(0)}
-              className="mr-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-brand-soft-ink transition-colors hover:bg-brand-soft"
+              className="mr-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gold-header transition-colors hover:bg-panel-cell"
             >
               Today
             </button>
@@ -295,7 +295,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
             type="button"
             aria-label="Previous week"
             onClick={() => setWeekOffset((w) => w - 1)}
-            className="rounded-lg border border-line p-1.5 text-ink-muted transition-colors hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
+            className="rounded-lg border border-panel-line p-1.5 text-panel-ink-soft transition-colors hover:border-panel-cell-line hover:bg-panel-cell hover:text-panel-ink"
           >
             <ChevronIcon direction="left" />
           </button>
@@ -306,7 +306,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
             type="button"
             aria-label="Next week"
             onClick={() => setWeekOffset((w) => w + 1)}
-            className="rounded-lg border border-line p-1.5 text-ink-muted transition-colors hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
+            className="rounded-lg border border-panel-line p-1.5 text-panel-ink-soft transition-colors hover:border-panel-cell-line hover:bg-panel-cell hover:text-panel-ink"
           >
             <ChevronIcon direction="right" />
           </button>
@@ -314,7 +314,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
       </div>
 
       {(globalError || fetchError) && (
-        <p className="mx-4 mt-4 rounded-lg border border-bad-soft-line bg-bad-soft px-3 py-2 text-sm text-bad sm:mx-5">
+        <p className="mx-4 mt-4 rounded-lg border border-white/30 bg-bad px-3 py-2 text-sm text-bad-on sm:mx-5">
           {globalError ?? "Couldn't load the schedule. Try refreshing."}
         </p>
       )}
@@ -323,7 +323,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
         <table className="w-full min-w-[42rem] table-fixed border-separate border-spacing-x-1 border-spacing-y-1">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 w-12 bg-surface sm:w-16" />
+              <th className="sticky left-0 z-10 w-12 bg-panel sm:w-16" />
               {days.map((day) => {
                 const today = isSameDay(day, now);
                 return (
@@ -334,14 +334,14 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                   >
                     <span
                       className={`text-[11px] font-medium uppercase tracking-wide ${
-                        today ? "text-brand-soft-ink" : "text-ink-faint"
+                        today ? "text-gold-header" : "text-panel-ink-faint"
                       }`}
                     >
                       {WEEKDAY.format(day)}
                     </span>
                     <span
                       className={`font-display mx-auto mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold tabular-nums ${
-                        today ? "bg-brand text-brand-on shadow-card" : "text-ink"
+                        today ? "bg-gold-fill text-gold-on shadow-card" : "text-panel-ink"
                       }`}
                     >
                       {DAY_NUM.format(day)}
@@ -354,7 +354,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
           <tbody>
             {SLOT_START_HOURS.map((hour) => (
               <tr key={hour}>
-                <td className="sticky left-0 z-10 bg-surface pr-2 text-right align-middle text-[11px] font-medium tabular-nums text-ink-faint">
+                <td className="sticky left-0 z-10 bg-panel pr-2 text-right align-middle text-[11px] font-medium tabular-nums text-panel-ink-faint">
                   {HOUR_LABEL.format(slotStart(days[0], hour))}
                 </td>
                 {days.map((day) => {
@@ -411,14 +411,14 @@ export function WeeklyGrid({ userId }: { userId: string }) {
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-4 py-3 text-xs text-ink-muted sm:px-5">
-        <LegendSwatch className="border-dashed border-line-strong" label="Open" />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-panel-line px-4 py-3 text-xs text-panel-ink-soft sm:px-5">
+        <LegendSwatch className="border-dashed border-panel-cell-line" label="Open" />
         <LegendSwatch
-          className="border-brand-soft-line bg-brand-soft"
+          className="border-panel-cell-line bg-panel-cell"
           label="Someone signed up"
         />
         <LegendSwatch className="border-gold-fill bg-gold-fill" label="Yours" />
-        {isLoading && <span className="ml-auto text-ink-faint">Loading…</span>}
+        {isLoading && <span className="ml-auto text-panel-ink-faint">Loading…</span>}
       </div>
 
       {selected && (
@@ -495,15 +495,15 @@ function cellClass(isPast: boolean, isMine: boolean, hasOthers: boolean) {
   if (isPast) {
     // Recessive, but still a visible box — an entirely blank column reads as
     // broken rather than "already happened".
-    return `${base} border-line/70 bg-surface-sunken/60 text-ink-faint`;
+    return `${base} border-transparent bg-panel-past text-panel-ink-faint`;
   }
   if (isMine) {
     return `${base} border-gold-fill bg-gold-fill text-gold-on shadow-card hover:bg-gold-fill-hover`;
   }
   if (hasOthers) {
-    return `${base} border-brand-soft-line bg-brand-soft text-brand-soft-ink hover:border-brand-ring`;
+    return `${base} border-panel-cell-line bg-panel-cell text-panel-ink hover:border-gold-header`;
   }
-  return `${base} border-dashed border-line-strong text-ink-faint hover:border-brand-ring hover:bg-brand-soft hover:text-brand-soft-ink`;
+  return `${base} border-dashed border-panel-cell-line text-panel-ink-soft hover:border-gold-header hover:bg-panel-cell hover:text-panel-ink`;
 }
 
 export default WeeklyGrid;

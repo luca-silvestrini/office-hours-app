@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { WeeklyGrid } from "@/components/weekly-grid";
+import Image from "next/image";
 import { CrossGlyph } from "@/components/brand-mark";
+import { SideDevotion } from "@/components/side-devotion";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -25,11 +27,20 @@ export default async function Home() {
 
   return (
     <>
-      <header className="border-b border-[var(--gold-header)]/40 bg-header text-header-ink">
+      <SideDevotion />
+
+      <header className="relative z-20 border-b border-[var(--gold-header)]/40 bg-header text-header-ink">
         <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
-          <span className="inline-flex shrink-0 items-center justify-center rounded-lg ring-1 ring-[var(--gold-header)]/50 p-1.5">
-            <CrossGlyph className="h-5 w-5 text-gold-header" />
-          </span>
+          {/* Fixed height, automatic width — the crest renders correctly
+              whatever exact dimensions the source file has. */}
+          <Image
+            src="/brand/crest.png"
+            alt="All Saints Newman Center"
+            width={140}
+            height={160}
+            priority
+            className="h-9 w-auto shrink-0"
+          />
           <div className="min-w-0">
             <p className="font-display truncate text-lg font-semibold leading-tight tracking-tight">
               Office Hours
@@ -82,7 +93,7 @@ export default async function Home() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <div className="mb-7">
           <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
             Hi{firstName ? `, ${firstName}` : ""}
@@ -95,12 +106,17 @@ export default async function Home() {
         <WeeklyGrid userId={user.id} />
       </main>
 
-      <footer className="mt-4 border-t border-line py-5">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-          <CrossGlyph className="h-3.5 w-3.5 shrink-0 text-[var(--gold-strong)]/70" />
-          <p className="text-xs text-ink-faint">
-            All Saints Catholic Newman Center · 230 E University Dr, Tempe
-          </p>
+      {/* Bookends the page — same blue bar and gold rule treatment as the header. */}
+      <footer className="relative z-20 mt-8 border-t border-[var(--gold-header)]/40 bg-header text-header-ink">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 py-5 sm:px-6">
+          <span className="rule-gold-header hidden h-px flex-1 sm:block" />
+          <div className="flex items-center gap-2.5">
+            <CrossGlyph className="h-4 w-4 shrink-0 text-gold-header" />
+            <p className="text-xs text-header-ink-soft">
+              All Saints Catholic Newman Center · 230 E University Dr, Tempe
+            </p>
+          </div>
+          <span className="rule-gold-header hidden h-px flex-1 sm:block" />
         </div>
       </footer>
     </>

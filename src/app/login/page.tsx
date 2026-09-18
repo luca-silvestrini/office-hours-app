@@ -4,12 +4,13 @@ import { Suspense, useState } from "react";
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signUp, logIn, type AuthState } from "./actions";
-import { BrandMark } from "@/components/brand-mark";
+import Image from "next/image";
+import { LoginBackdrop } from "@/components/login-backdrop";
 
 const initialState: AuthState = { status: "idle" };
 
 const fieldClass =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink shadow-xs outline-none transition-colors placeholder:text-ink-faint focus:border-brand-ring";
+  "w-full rounded-lg border border-line bg-surface/80 px-3 py-2.5 text-sm text-ink shadow-xs outline-none transition-colors placeholder:text-ink-faint focus:border-brand-ring";
 
 const labelClass = "block text-xs font-medium uppercase tracking-wide text-ink-muted";
 
@@ -27,9 +28,16 @@ function AuthForm() {
   const action = mode === "signup" ? signUpAction : logInAction;
 
   return (
-    <div className="w-full max-w-[26rem]">
-      <div className="mb-6 flex flex-col items-center text-center">
-        <BrandMark className="h-14 w-14" />
+    <div className="relative z-10 w-full max-w-[26rem]">
+      <div className="text-on-art mb-6 flex flex-col items-center text-center">
+        <Image
+          src="/brand/crest.png"
+          alt="All Saints Newman Center"
+          width={280}
+          height={320}
+          priority
+          className="h-20 w-auto"
+        />
         <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight">Office Hours</h1>
         <p className="mt-1 text-sm text-ink-muted">All Saints Catholic Newman Center</p>
         <div className="mt-4 flex w-full items-center gap-3" title="Pray and work">
@@ -41,8 +49,8 @@ function AuthForm() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-7">
-        <div className="flex rounded-lg bg-surface-sunken p-1 text-sm">
+      <div className="rounded-2xl border border-line/70 bg-surface/70 p-6 shadow-card backdrop-blur-md sm:p-7">
+        <div className="flex rounded-lg bg-surface-sunken/70 p-1 text-sm">
           {(["login", "signup"] as const).map((m) => (
             <button
               key={m}
@@ -51,7 +59,7 @@ function AuthForm() {
               aria-pressed={mode === m}
               className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${
                 mode === m
-                  ? "bg-surface text-ink shadow-xs"
+                  ? "bg-surface/90 text-ink shadow-xs"
                   : "text-ink-muted hover:text-ink"
               }`}
             >
@@ -146,7 +154,7 @@ function AuthForm() {
         </form>
       </div>
 
-      <p className="mt-5 text-center text-xs text-ink-faint">
+      <p className="text-on-art mt-5 text-center text-xs text-ink-muted">
         {mode === "signup" ? "Already have an account?" : "Don't have an account yet?"}{" "}
         <button
           type="button"
@@ -162,7 +170,8 @@ function AuthForm() {
 
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12 sm:py-16">
+    <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:py-16">
+      <LoginBackdrop />
       <Suspense
         fallback={<div className="w-full max-w-[26rem] text-sm text-ink-muted">Loading…</div>}
       >

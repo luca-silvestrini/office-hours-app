@@ -1,15 +1,21 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
- * Design tokens — warm parchment, dusty blue, and gold.
+ * Design tokens — white page, dusty blue panels, and gold.
+ *
+ * Light-only by design: the app forces its own palette rather than following
+ * prefers-color-scheme, so the white background and blue panels look the same
+ * for everyone. `color-scheme: light` below also keeps form controls and
+ * scrollbars light for visitors whose OS is set to dark.
  * Catholic/collegiate warmth without the Victorian framing: serif display
  * type, thin gold rules, and a single ornament rather than heavy borders.
  * ------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
 
-  --bg: #f7f2e7;
-  --bg-pattern: rgba(154, 123, 40, 0.05);
+  /* Warm off-white — pure #fff was glaring against the blue panels. */
+  --bg: #faf7f2;
+  --bg-deep: #f2ece2;
   --surface: #fffcf5;
   --surface-sunken: #f3ecdb;
   --line: #e5dcc4;
@@ -24,6 +30,16 @@
   --header-deep: #4a6a97;
   --header-ink: #ffffff;
   --header-ink-soft: rgba(255, 255, 255, 0.72);
+
+  /* The weekly-schedule card and footer share the header's blue. */
+  --panel: #5b7fb0;
+  --panel-ink: #ffffff;
+  --panel-ink-soft: rgba(255, 255, 255, 0.78);
+  --panel-ink-faint: rgba(255, 255, 255, 0.55);
+  --panel-line: rgba(255, 255, 255, 0.24);
+  --panel-cell: rgba(255, 255, 255, 0.14);
+  --panel-cell-line: rgba(255, 255, 255, 0.42);
+  --panel-past: rgba(23, 42, 71, 0.22);
 
   --brand: #2f4f7f;
   --brand-hover: #26406a;
@@ -57,61 +73,10 @@
   --shadow-pop: 0 6px 16px rgba(60, 46, 20, 0.1), 0 20px 44px rgba(60, 46, 20, 0.18);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-
-    --bg: #14120d;
-    --bg-pattern: rgba(201, 162, 39, 0.05);
-    --surface: #1c1913;
-    --surface-sunken: #14120d;
-    --line: #2f2920;
-    --line-strong: #463d2e;
-
-    --ink: #ece4d3;
-    --ink-muted: #a89e88;
-    --ink-faint: #756c58;
-
-    --header: #2b3f5c;
-    --header-deep: #22334b;
-    --header-ink: #f3ece0;
-    --header-ink-soft: rgba(243, 236, 224, 0.68);
-
-    --brand: #4e79ad;
-    --brand-hover: #5f89bb;
-    --brand-on: #ffffff;
-    --brand-ring: #7fa3d1;
-    --brand-soft: #17222f;
-    --brand-soft-line: #2f4a6b;
-    --brand-soft-ink: #a8c6e6;
-
-    --gold: #d8b459;
-    --gold-strong: #e0c072;
-    --gold-fill: #9a7b28;
-    --gold-fill-hover: #b08e2e;
-    --gold-on: #ffffff;
-    --gold-soft: #2a2211;
-    --gold-soft-line: #6d5719;
-    --gold-soft-ink: #e5c877;
-    --gold-header: #edcf7d;
-
-    --ok: #6fbf8e;
-    --ok-soft: #14241a;
-    --ok-soft-line: #2f5b41;
-
-    --bad: #d98b94;
-    --bad-hover: #c3707a;
-    --bad-on: #ffffff;
-    --bad-soft: #2a1518;
-    --bad-soft-line: #6d323a;
-
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.4);
-    --shadow-pop: 0 6px 18px rgba(0, 0, 0, 0.55), 0 24px 52px rgba(0, 0, 0, 0.6);
-  }
-}
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
   --color-surface: var(--surface);
   --color-surface-sunken: var(--surface-sunken);
   --color-line: var(--line);
@@ -125,6 +90,15 @@
   --color-header-deep: var(--header-deep);
   --color-header-ink: var(--header-ink);
   --color-header-ink-soft: var(--header-ink-soft);
+
+  --color-panel: var(--panel);
+  --color-panel-ink: var(--panel-ink);
+  --color-panel-ink-soft: var(--panel-ink-soft);
+  --color-panel-ink-faint: var(--panel-ink-faint);
+  --color-panel-line: var(--panel-line);
+  --color-panel-cell: var(--panel-cell);
+  --color-panel-cell-line: var(--panel-cell-line);
+  --color-panel-past: var(--panel-past);
 
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
@@ -164,6 +138,13 @@
 
 body {
   background-color: var(--bg);
+  background-image: radial-gradient(
+    120% 70% at 50% 0%,
+    #ffffff 0%,
+    var(--bg) 45%,
+    var(--bg-deep) 100%
+  );
+  background-attachment: fixed;
   color: var(--ink);
   /* The scaffold used to hard-code Arial here, which silently overrode the
      webfonts loaded in layout.tsx. */
@@ -176,14 +157,6 @@ body {
 .font-display {
   font-family: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
   font-optical-sizing: auto;
-}
-
-/* Faint warm grid wash so large empty areas read as parchment, not void. */
-.app-canvas {
-  background-image:
-    linear-gradient(to right, var(--bg-pattern) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--bg-pattern) 1px, transparent 1px);
-  background-size: 30px 30px;
 }
 
 /* Hairline gold rules flanking the motto. The -header variant uses the
@@ -204,6 +177,14 @@ body {
     color-mix(in srgb, var(--gold-header) 80%, transparent),
     transparent
   );
+}
+
+/* Text that sits directly on the login artwork — a faint light halo so it
+   stays readable over busy areas without needing a scrim behind it. */
+.text-on-art {
+  text-shadow:
+    0 0 6px rgba(255, 252, 245, 0.95),
+    0 1px 14px rgba(255, 252, 245, 0.8);
 }
 
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
