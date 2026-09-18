@@ -29,9 +29,16 @@ function AuthForm() {
   return (
     <div className="w-full max-w-[26rem]">
       <div className="mb-6 flex flex-col items-center text-center">
-        <BrandMark className="h-12 w-12" />
-        <h1 className="mt-4 text-2xl font-semibold tracking-tight">Office Hours</h1>
+        <BrandMark className="h-14 w-14" />
+        <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight">Office Hours</h1>
         <p className="mt-1 text-sm text-ink-muted">All Saints Catholic Newman Center</p>
+        <div className="mt-4 flex w-full items-center gap-3" title="Pray and work">
+          <span className="rule-gold h-px flex-1" />
+          <span className="font-display whitespace-nowrap text-sm italic tracking-wide text-gold">
+            Ora et Labora
+          </span>
+          <span className="rule-gold h-px flex-1" />
+        </div>
       </div>
 
       <div className="rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-7">

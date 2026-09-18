@@ -269,7 +269,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
       {/* Card header: title + this-week status, then week navigation */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 sm:px-5">
         <div className="flex items-center gap-3">
-          <h2 className="text-base font-semibold tracking-tight">Weekly schedule</h2>
+          <h2 className="font-display text-xl font-semibold tracking-tight">Weekly schedule</h2>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
               atCap
@@ -299,7 +299,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
           >
             <ChevronIcon direction="left" />
           </button>
-          <span className="min-w-[8.5rem] text-center text-sm font-medium tabular-nums">
+          <span className="font-display min-w-[9rem] text-center text-base font-medium tabular-nums">
             {RANGE_LABEL.format(days[0])} – {RANGE_LABEL.format(days[6])}
           </span>
           <button
@@ -340,7 +340,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
                       {WEEKDAY.format(day)}
                     </span>
                     <span
-                      className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums ${
+                      className={`font-display mx-auto mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold tabular-nums ${
                         today ? "bg-brand text-brand-on shadow-card" : "text-ink"
                       }`}
                     >
@@ -417,7 +417,7 @@ export function WeeklyGrid({ userId }: { userId: string }) {
           className="border-brand-soft-line bg-brand-soft"
           label="Someone signed up"
         />
-        <LegendSwatch className="border-gold-soft-line bg-gold-soft" label="Yours" />
+        <LegendSwatch className="border-gold-fill bg-gold-fill" label="Yours" />
         {isLoading && <span className="ml-auto text-ink-faint">Loading…</span>}
       </div>
 
@@ -498,7 +498,7 @@ function cellClass(isPast: boolean, isMine: boolean, hasOthers: boolean) {
     return `${base} border-line/70 bg-surface-sunken/60 text-ink-faint`;
   }
   if (isMine) {
-    return `${base} border-gold-soft-line bg-gold-soft text-gold-soft-ink hover:border-gold-strong`;
+    return `${base} border-gold-fill bg-gold-fill text-gold-on shadow-card hover:bg-gold-fill-hover`;
   }
   if (hasOthers) {
     return `${base} border-brand-soft-line bg-brand-soft text-brand-soft-ink hover:border-brand-ring`;

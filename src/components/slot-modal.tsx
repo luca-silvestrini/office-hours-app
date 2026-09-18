@@ -175,7 +175,7 @@ export function SlotModal({
       className="z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-hidden rounded-xl border border-line bg-surface text-ink shadow-pop"
     >
       <div className="border-b border-line bg-surface-sunken px-4 py-3">
-        <p className="text-sm font-semibold tracking-tight">{DATE_HEADER.format(start)}</p>
+        <p className="font-display text-lg font-semibold tracking-tight">{DATE_HEADER.format(start)}</p>
         <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
           {TIME_LABEL.format(start)} – {TIME_LABEL.format(end)}
         </p>
@@ -256,7 +256,7 @@ export function SlotModal({
                   type="button"
                   disabled={busy}
                   onClick={() => run(() => onReleaseThisAndFuture(slot))}
-                  className="flex-1 rounded-lg border border-bad-soft-line px-3 py-2 text-sm font-medium text-bad transition-colors hover:bg-bad-soft disabled:opacity-60"
+                  className="flex-1 rounded-lg bg-bad px-3 py-2 text-sm font-medium text-bad-on transition-colors hover:bg-bad-hover disabled:opacity-60"
                 >
                   This &amp; future
                 </button>

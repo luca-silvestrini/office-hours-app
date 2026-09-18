@@ -1,89 +1,112 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
- * Design tokens — deep blue (primary) + warm gold (accent).
- * Every value is defined for light first, then redefined under the dark
- * media query, so utilities built from them swap automatically.
+ * Design tokens — warm parchment, dusty blue, and gold.
+ * Catholic/collegiate warmth without the Victorian framing: serif display
+ * type, thin gold rules, and a single ornament rather than heavy borders.
  * ------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
 
-  --bg: #f4f7fb;
-  --bg-pattern: rgba(30, 58, 138, 0.04);
-  --surface: #ffffff;
-  --surface-sunken: #f8fafc;
-  --line: #e4e9f2;
-  --line-strong: #cbd5e1;
+  --bg: #f7f2e7;
+  --bg-pattern: rgba(154, 123, 40, 0.05);
+  --surface: #fffcf5;
+  --surface-sunken: #f3ecdb;
+  --line: #e5dcc4;
+  --line-strong: #cfc0a0;
 
-  --ink: #0f172a;
-  --ink-muted: #64748b;
-  --ink-faint: #94a3b8;
+  --ink: #23324d;
+  --ink-muted: #6d6552;
+  --ink-faint: #9a927b;
 
-  --brand: #1e3a8a;
-  --brand-hover: #172f70;
+  /* Header bar — the dusty blue from the reference */
+  --header: #5b7fb0;
+  --header-deep: #4a6a97;
+  --header-ink: #ffffff;
+  --header-ink-soft: rgba(255, 255, 255, 0.72);
+
+  --brand: #2f4f7f;
+  --brand-hover: #26406a;
   --brand-on: #ffffff;
-  --brand-ring: #3b82f6;
-  --brand-soft: #eef4ff;
-  --brand-soft-line: #c7dbfe;
-  --brand-soft-ink: #1d4ed8;
+  --brand-ring: #5b7fb0;
+  --brand-soft: #e9f0f8;
+  --brand-soft-line: #bed2e8;
+  --brand-soft-ink: #2f4f7f;
 
-  --gold: #b45309;
-  --gold-strong: #d4a017;
-  --gold-soft: #fffaeb;
-  --gold-soft-line: #f5cf6a;
-  --gold-soft-ink: #92400e;
+  --gold: #8c6b1f;
+  --gold-strong: #c9a227;
+  --gold-fill: #9a7b28;
+  --gold-fill-hover: #86691f;
+  --gold-on: #ffffff;
+  --gold-soft: #fbf3de;
+  --gold-soft-line: #e0c471;
+  --gold-soft-ink: #6e5316;
+  --gold-header: #f2d98a;
 
-  --ok: #15803d;
-  --ok-soft: #f0fdf4;
-  --ok-soft-line: #bbf7d0;
+  --ok: #2f6b45;
+  --ok-soft: #eef6f0;
+  --ok-soft-line: #b9d8c5;
 
-  --bad: #b91c1c;
-  --bad-soft: #fef2f2;
-  --bad-soft-line: #fecaca;
+  --bad: #8b2332;
+  --bad-hover: #751c29;
+  --bad-on: #ffffff;
+  --bad-soft: #fbeeef;
+  --bad-soft-line: #e0b4b9;
 
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
-  --shadow-pop: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
+  --shadow-card: 0 1px 2px rgba(60, 46, 20, 0.05), 0 6px 18px rgba(60, 46, 20, 0.06);
+  --shadow-pop: 0 6px 16px rgba(60, 46, 20, 0.1), 0 20px 44px rgba(60, 46, 20, 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
 
-    --bg: #070b14;
-    --bg-pattern: rgba(96, 165, 250, 0.05);
-    --surface: #0e1524;
-    --surface-sunken: #0b111d;
-    --line: #1c2740;
-    --line-strong: #2d3b57;
+    --bg: #14120d;
+    --bg-pattern: rgba(201, 162, 39, 0.05);
+    --surface: #1c1913;
+    --surface-sunken: #14120d;
+    --line: #2f2920;
+    --line-strong: #463d2e;
 
-    --ink: #e6ecf7;
-    --ink-muted: #94a3b8;
-    --ink-faint: #5b6880;
+    --ink: #ece4d3;
+    --ink-muted: #a89e88;
+    --ink-faint: #756c58;
 
-    --brand: #2563eb;
-    --brand-hover: #1d4ed8;
+    --header: #2b3f5c;
+    --header-deep: #22334b;
+    --header-ink: #f3ece0;
+    --header-ink-soft: rgba(243, 236, 224, 0.68);
+
+    --brand: #4e79ad;
+    --brand-hover: #5f89bb;
     --brand-on: #ffffff;
-    --brand-ring: #60a5fa;
-    --brand-soft: #10203f;
-    --brand-soft-line: #1e3a8a;
-    --brand-soft-ink: #93c5fd;
+    --brand-ring: #7fa3d1;
+    --brand-soft: #17222f;
+    --brand-soft-line: #2f4a6b;
+    --brand-soft-ink: #a8c6e6;
 
-    --gold: #fbbf24;
-    --gold-strong: #fbbf24;
-    --gold-soft: #2a2008;
-    --gold-soft-line: #8a6514;
-    --gold-soft-ink: #fcd34d;
+    --gold: #d8b459;
+    --gold-strong: #e0c072;
+    --gold-fill: #9a7b28;
+    --gold-fill-hover: #b08e2e;
+    --gold-on: #ffffff;
+    --gold-soft: #2a2211;
+    --gold-soft-line: #6d5719;
+    --gold-soft-ink: #e5c877;
+    --gold-header: #edcf7d;
 
-    --ok: #4ade80;
-    --ok-soft: #062d1b;
-    --ok-soft-line: #15803d;
+    --ok: #6fbf8e;
+    --ok-soft: #14241a;
+    --ok-soft-line: #2f5b41;
 
-    --bad: #f87171;
-    --bad-soft: #2b1214;
-    --bad-soft-line: #991b1b;
+    --bad: #d98b94;
+    --bad-hover: #c3707a;
+    --bad-on: #ffffff;
+    --bad-soft: #2a1518;
+    --bad-soft-line: #6d323a;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
-    --shadow-pop: 0 4px 14px rgba(0, 0, 0, 0.5), 0 20px 48px rgba(0, 0, 0, 0.55);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 6px 18px rgba(0, 0, 0, 0.55), 0 24px 52px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -98,6 +121,11 @@
   --color-ink-muted: var(--ink-muted);
   --color-ink-faint: var(--ink-faint);
 
+  --color-header: var(--header);
+  --color-header-deep: var(--header-deep);
+  --color-header-ink: var(--header-ink);
+  --color-header-ink-soft: var(--header-ink-soft);
+
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-on: var(--brand-on);
@@ -108,15 +136,21 @@
 
   --color-gold: var(--gold);
   --color-gold-strong: var(--gold-strong);
+  --color-gold-fill: var(--gold-fill);
+  --color-gold-fill-hover: var(--gold-fill-hover);
+  --color-gold-on: var(--gold-on);
   --color-gold-soft: var(--gold-soft);
   --color-gold-soft-line: var(--gold-soft-line);
   --color-gold-soft-ink: var(--gold-soft-ink);
+  --color-gold-header: var(--gold-header);
 
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-ok-soft-line: var(--ok-soft-line);
 
   --color-bad: var(--bad);
+  --color-bad-hover: var(--bad-hover);
+  --color-bad-on: var(--bad-on);
   --color-bad-soft: var(--bad-soft);
   --color-bad-soft-line: var(--bad-soft-line);
 
@@ -125,26 +159,53 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
 body {
   background-color: var(--bg);
   color: var(--ink);
   /* The scaffold used to hard-code Arial here, which silently overrode the
-     Geist font loaded in layout.tsx. */
+     webfonts loaded in layout.tsx. */
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
 }
 
-/* A faint grid wash so large empty areas don't read as flat white/black. */
+/* Serif display face, used only for headings and dates — body copy and UI
+   controls stay on the sans for legibility at small sizes. */
+.font-display {
+  font-family: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+}
+
+/* Faint warm grid wash so large empty areas read as parchment, not void. */
 .app-canvas {
   background-image:
     linear-gradient(to right, var(--bg-pattern) 1px, transparent 1px),
     linear-gradient(to bottom, var(--bg-pattern) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-size: 30px 30px;
 }
 
-/* Consistent keyboard focus treatment across every interactive element. */
+/* Hairline gold rules flanking the motto. The -header variant uses the
+   brighter gold so it stays visible against the blue bar. */
+.rule-gold {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--gold-strong) 65%, transparent),
+    transparent
+  );
+}
+
+.rule-gold-header {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--gold-header) 80%, transparent),
+    transparent
+  );
+}
+
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--brand-ring);
   outline-offset: 2px;
