@@ -1,5 +1,5 @@
 /**
- * Hand-maintained database types, matching supabase/migrations/0001-0004.
+ * Hand-maintained database types, matching supabase/migrations/0001-0005.
  * Regenerate with `supabase gen types typescript` once the CLI is linked if you
  * prefer generated types.
  */

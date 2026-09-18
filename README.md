@@ -41,7 +41,10 @@ supabase db push
 `0001` creates `users`, `office_hours_slots`, `check_ins`, the enums, the
 `auth.users` → `public.users` sync trigger, and all row-level-security
 policies. `0002`–`0004` layer on multi-claim support, recurring weekly
-claims, and names + the `member_names` view — see each file's own comments.
+claims, and names + the `member_names` view. `0005` fixes a bug present
+since `0001`: deleting a user with any claimed slots used to fail outright
+(a check constraint conflicted with the original `on delete set null`) — see
+each file's own comments.
 
 ### 3. Configure Supabase Auth
 
@@ -117,7 +120,7 @@ api-go/
                                 #   import-visibility rule the moment more than one
                                 #   function needs the shared package
 supabase/
-  migrations/0001-0004_*.sql
+  migrations/0001-0005_*.sql
 vercel.json                    # polyglot build: @vercel/next + @vercel/go
 ```
 
