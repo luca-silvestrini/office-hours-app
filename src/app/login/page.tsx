@@ -10,9 +10,10 @@ import { LoginBackdrop } from "@/components/login-backdrop";
 const initialState: AuthState = { status: "idle" };
 
 const fieldClass =
-  "w-full rounded-lg border border-line bg-surface/80 px-3 py-2.5 text-sm text-ink shadow-xs outline-none transition-colors placeholder:text-ink-faint focus:border-brand-ring";
+  "w-full rounded-lg border border-line bg-surface/90 px-3 py-2.5 text-sm text-ink shadow-xs outline-none transition-colors placeholder:text-ink-faint focus:border-brand-ring";
 
-const labelClass = "block text-xs font-medium uppercase tracking-wide text-ink-muted";
+const labelClass =
+  "text-on-art block text-xs font-semibold uppercase tracking-wide text-ink";
 
 function AuthForm() {
   const params = useSearchParams();
@@ -39,18 +40,18 @@ function AuthForm() {
           className="h-20 w-auto"
         />
         <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight">Office Hours</h1>
-        <p className="mt-1 text-sm text-ink-muted">All Saints Catholic Newman Center</p>
+        <p className="mt-1 text-sm font-medium text-ink">All Saints Catholic Newman Center</p>
         <div className="mt-4 flex w-full items-center gap-3" title="Pray and work">
           <span className="rule-gold h-px flex-1" />
-          <span className="font-display whitespace-nowrap text-sm italic tracking-wide text-gold">
+          <span className="font-display whitespace-nowrap text-base font-semibold italic tracking-wide text-gold-soft-ink">
             Ora et Labora
           </span>
           <span className="rule-gold h-px flex-1" />
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line/70 bg-surface/70 p-6 shadow-card backdrop-blur-md sm:p-7">
-        <div className="flex rounded-lg bg-surface-sunken/70 p-1 text-sm">
+      <div className="p-1 sm:p-2">
+        <div className="flex rounded-lg border border-line/70 bg-surface-sunken/85 p-1 text-sm">
           {(["login", "signup"] as const).map((m) => (
             <button
               key={m}
@@ -68,7 +69,7 @@ function AuthForm() {
           ))}
         </div>
 
-        <p className="mt-5 text-sm text-ink-muted">
+        <p className="text-on-art mt-5 text-sm font-medium text-ink">
           {mode === "signup"
             ? "Create an account to start signing up for office hours."
             : "Welcome back — sign in to manage your hours."}
@@ -98,7 +99,7 @@ function AuthForm() {
                 placeholder="Jane Doe"
                 className={fieldClass}
               />
-              <p className="text-xs text-ink-faint">
+              <p className="text-on-art text-xs font-medium text-ink">
                 Shown to others on the schedule so people know who&apos;s covering each hour.
               </p>
             </div>
@@ -134,7 +135,7 @@ function AuthForm() {
               className={fieldClass}
             />
             {mode === "signup" && (
-              <p className="text-xs text-ink-faint">At least 6 characters.</p>
+              <p className="text-on-art text-xs font-medium text-ink">At least 6 characters.</p>
             )}
           </div>
 
@@ -154,7 +155,7 @@ function AuthForm() {
         </form>
       </div>
 
-      <p className="text-on-art mt-5 text-center text-xs text-ink-muted">
+      <p className="text-on-art mt-5 text-center text-xs font-medium text-ink">
         {mode === "signup" ? "Already have an account?" : "Don't have an account yet?"}{" "}
         <button
           type="button"

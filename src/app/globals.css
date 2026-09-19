@@ -182,9 +182,14 @@ body {
 /* Text that sits directly on the login artwork — a faint light halo so it
    stays readable over busy areas without needing a scrim behind it. */
 .text-on-art {
+  /* Stacked layers build a soft, dense white aura rather than a thin outline,
+     so small text stays legible over the busiest parts of the artwork. */
   text-shadow:
-    0 0 6px rgba(255, 252, 245, 0.95),
-    0 1px 14px rgba(255, 252, 245, 0.8);
+    0 0 2px #fffcf5,
+    0 0 5px #fffcf5,
+    0 0 10px rgba(255, 252, 245, 0.95),
+    0 0 18px rgba(255, 252, 245, 0.85),
+    0 0 28px rgba(255, 252, 245, 0.7);
 }
 
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
