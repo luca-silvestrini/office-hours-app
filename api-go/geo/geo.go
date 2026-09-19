@@ -19,7 +19,7 @@ const (
 
 	// CheckInRadiusMiles is how close the browser's geolocation must be to the
 	// office for a geolocation check-in to be accepted.
-	CheckInRadiusMiles = 2.0
+	CheckInRadiusMiles = 1.0
 
 	earthRadiusMiles = 3958.7613
 )

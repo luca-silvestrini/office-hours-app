@@ -12,7 +12,7 @@ export const OFFICE_LOCATION = {
 } as const;
 
 /** A geolocation check-in is only accepted within this radius of the office. */
-export const CHECK_IN_RADIUS_MILES = 2;
+export const CHECK_IN_RADIUS_MILES = 1;
 
 /**
  * Weekly grid shape: Sunday–Saturday columns, one-hour rows.
