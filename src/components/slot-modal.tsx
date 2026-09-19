@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CHECK_IN_WINDOW_EARLY_MINUTES, MAX_SLOTS_PER_USER_PER_WEEK } from "@/lib/config";
+import { createPortal } from "react-dom";
+import {
+  CHECK_IN_WINDOW_EARLY_MINUTES,
+  MAX_SLOTS_PER_USER_PER_WEEK,
+} from "@/lib/config";
 import { displayNames } from "@/lib/names";
 import type { Database } from "@/lib/supabase/types";
 
@@ -13,12 +17,18 @@ const DATE_HEADER = new Intl.DateTimeFormat(undefined, {
   month: "long",
   day: "numeric",
 });
-const TIME_LABEL = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const TIME_LABEL = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 const GAP = 10;
 
 /** Where to place the popover relative to the clicked cell, clamped on-screen. */
-function computePosition(anchor: DOMRect, popover: { width: number; height: number }) {
+function computePosition(
+  anchor: DOMRect,
+  popover: { width: number; height: number },
+) {
   let left = anchor.right + GAP;
   if (left + popover.width > window.innerWidth - GAP) {
     left = anchor.left - popover.width - GAP;
@@ -59,23 +69,47 @@ export function SlotModal({
   onClaim: (start: Date, repeatWeekly: boolean) => Promise<void>;
   onReleaseOne: (slot: Slot) => Promise<void>;
   onReleaseThisAndFuture: (slot: Slot) => Promise<void>;
-  onCheckIn: (slots: Slot[], latitude: number, longitude: number) => Promise<void>;
+  onCheckIn: (
+    slots: Slot[],
+    latitude: number,
+    longitude: number,
+  ) => Promise<void>;
 }) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Re-clamp whenever the popover's own size changes (an error message or a
+  // longer section appearing), not just on open, so it never runs off-screen.
   useLayoutEffect(() => {
     const el = popoverRef.current;
     if (!el) return;
-    setPosition(computePosition(anchorRect, { width: el.offsetWidth, height: el.offsetHeight }));
+    const place = () =>
+      setPosition(
+        computePosition(anchorRect, {
+          width: el.offsetWidth,
+          height: el.offsetHeight,
+        }),
+      );
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    window.addEventListener("resize", place);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", place);
+    };
   }, [anchorRect]);
 
   useEffect(() => {
     function handlePointerDown(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose();
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node))
+        onClose();
     }
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -98,10 +132,14 @@ export function SlotModal({
   // Back-to-back slots share one check-in covering their combined span, so the
   // window and "already checked in" state are computed across all of them.
   const windowStart = mineSlots.length
-    ? new Date(Math.min(...mineSlots.map((s) => new Date(s.start_time).getTime())))
+    ? new Date(
+        Math.min(...mineSlots.map((s) => new Date(s.start_time).getTime())),
+      )
     : start;
   const windowEnd = mineSlots.length
-    ? new Date(Math.max(...mineSlots.map((s) => new Date(s.end_time).getTime())))
+    ? new Date(
+        Math.max(...mineSlots.map((s) => new Date(s.end_time).getTime())),
+      )
     : end;
   // One-shot "is it check-in time" read for this popover instance (it's
   // freshly mounted per click, via the `key` in weekly-grid.tsx) — staleness
@@ -113,7 +151,8 @@ export function SlotModal({
     mineSlots.length > 0 &&
     now >= windowStart.getTime() - CHECK_IN_WINDOW_EARLY_MINUTES * 60_000 &&
     now <= windowEnd.getTime();
-  const allCheckedIn = mineSlots.length > 0 && mineSlots.every((s) => checkInsBySlotId.has(s.id));
+  const allCheckedIn =
+    mineSlots.length > 0 && mineSlots.every((s) => checkInsBySlotId.has(s.id));
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -140,7 +179,11 @@ export function SlotModal({
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          await onCheckIn(mineSlots, position.coords.latitude, position.coords.longitude);
+          await onCheckIn(
+            mineSlots,
+            position.coords.latitude,
+            position.coords.longitude,
+          );
         } catch (err) {
           setError(err instanceof Error ? err.message : "Check-in failed.");
         } finally {
@@ -161,7 +204,9 @@ export function SlotModal({
   const secondaryBtn =
     "flex-1 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-sunken disabled:opacity-60";
 
-  return (
+  // Portalled to <body>: the grid's <main> is its own stacking context, which
+  // would otherwise keep the popover underneath the page footer.
+  return createPortal(
     <div
       ref={popoverRef}
       role="dialog"
@@ -171,11 +216,14 @@ export function SlotModal({
         top: position?.top ?? anchorRect.top,
         left: position?.left ?? anchorRect.left,
         visibility: position ? "visible" : "hidden",
+        maxHeight: `calc(100vh - ${GAP * 2}px)`,
       }}
-      className="z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-hidden rounded-xl border border-line bg-surface text-ink shadow-pop"
+      className="z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-y-auto rounded-xl border border-line bg-surface text-ink shadow-pop"
     >
       <div className="border-b border-line bg-surface-sunken px-4 py-3">
-        <p className="font-display text-lg font-semibold tracking-tight">{DATE_HEADER.format(start)}</p>
+        <p className="font-display text-lg font-semibold tracking-tight">
+          {DATE_HEADER.format(start)}
+        </p>
         <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
           {TIME_LABEL.format(start)} – {TIME_LABEL.format(end)}
         </p>
@@ -193,15 +241,17 @@ export function SlotModal({
             <p className="text-[11px] font-medium uppercase tracking-wide text-brand-soft-ink/80">
               Also signed up
             </p>
-            <p className="mt-0.5 text-sm text-brand-soft-ink">{otherNames.join(", ")}</p>
+            <p className="mt-0.5 text-sm text-brand-soft-ink">
+              {otherNames.join(", ")}
+            </p>
           </div>
         )}
 
         {mineSlots.length === 0 &&
           (atCap ? (
             <p className="rounded-lg border border-gold-soft-line bg-gold-soft px-3 py-2 text-sm text-gold-soft-ink">
-              You already have {MAX_SLOTS_PER_USER_PER_WEEK} slots this week. Release one to sign up
-              for a different hour.
+              You already have {MAX_SLOTS_PER_USER_PER_WEEK} slots this week.
+              Release one to sign up for a different hour.
             </p>
           ) : (
             <>
@@ -214,7 +264,9 @@ export function SlotModal({
                 />
                 <span>
                   Repeat weekly
-                  <span className="block text-xs text-ink-muted">Same hour every week</span>
+                  <span className="block text-xs text-ink-muted">
+                    Same hour every week
+                  </span>
                 </span>
               </label>
 
@@ -230,7 +282,10 @@ export function SlotModal({
           ))}
 
         {mineSlots.map((slot) => (
-          <div key={slot.id} className="rounded-lg border border-gold-soft-line bg-gold-soft p-3">
+          <div
+            key={slot.id}
+            className="rounded-lg border border-gold-soft-line bg-gold-soft p-3"
+          >
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium tabular-nums text-gold-soft-ink">
                 {TIME_LABEL.format(new Date(slot.start_time))} –{" "}
@@ -278,13 +333,19 @@ export function SlotModal({
           <div className="rounded-lg border border-line bg-surface-sunken p-3">
             {mineSlots.length === 2 && (
               <p className="mb-2 text-xs text-ink-muted">
-                Back-to-back — one check-in covers {TIME_LABEL.format(windowStart)} –{" "}
+                Back-to-back — one check-in covers{" "}
+                {TIME_LABEL.format(windowStart)} –{" "}
                 {TIME_LABEL.format(windowEnd)}.
               </p>
             )}
             {allCheckedIn ? (
               <p className="flex items-center justify-center gap-1.5 text-sm font-medium text-ok">
-                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
                   <path
                     d="M20 6L9 17l-5-5"
                     stroke="currentColor"
@@ -302,14 +363,25 @@ export function SlotModal({
                 onClick={handleCheckIn}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-ok px-3 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
                   <path
                     d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z"
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinejoin="round"
                   />
-                  <circle cx="12" cy="10" r="2.4" stroke="currentColor" strokeWidth="2" />
+                  <circle
+                    cx="12"
+                    cy="10"
+                    r="2.4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
                 </svg>
                 {busy ? "Checking in…" : "Check in"}
               </button>
@@ -317,7 +389,8 @@ export function SlotModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
