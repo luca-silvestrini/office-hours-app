@@ -46,6 +46,42 @@ const maxSlotsPerCheckIn = 2
 // digest covers) is computed in this zone, not UTC.
 const officeTimeZone = "America/Phoenix"
 
+// litanyOfHumilityHTML is the full text of the Litany of Humility (Cardinal
+// Rafael Merry del Val, 1865–1930; public domain), included in the daily
+// digest as a short prayer to offer before office hours.
+const litanyOfHumilityHTML = `
+<h3 style="margin-bottom:4px;">Litany of Humility</h3>
+<p style="font-size:13px;color:#666;margin-top:0;">A prayer to consider before your office hours today.</p>
+<p>O Jesus, meek and humble of heart, <strong>hear me</strong>.</p>
+<p style="line-height:1.7;">
+From the desire of being esteemed, <em>deliver me, Jesus</em>.<br>
+From the desire of being loved, <em>deliver me, Jesus</em>.<br>
+From the desire of being extolled, <em>deliver me, Jesus</em>.<br>
+From the desire of being honored, <em>deliver me, Jesus</em>.<br>
+From the desire of being praised, <em>deliver me, Jesus</em>.<br>
+From the desire of being preferred to others, <em>deliver me, Jesus</em>.<br>
+From the desire of being consulted, <em>deliver me, Jesus</em>.<br>
+From the desire of being approved, <em>deliver me, Jesus</em>.<br>
+From the fear of being humiliated, <em>deliver me, Jesus</em>.<br>
+From the fear of being despised, <em>deliver me, Jesus</em>.<br>
+From the fear of suffering rebukes, <em>deliver me, Jesus</em>.<br>
+From the fear of being calumniated, <em>deliver me, Jesus</em>.<br>
+From the fear of being forgotten, <em>deliver me, Jesus</em>.<br>
+From the fear of being ridiculed, <em>deliver me, Jesus</em>.<br>
+From the fear of being wronged, <em>deliver me, Jesus</em>.<br>
+From the fear of being suspected, <em>deliver me, Jesus</em>.
+</p>
+<p style="line-height:1.7;">
+That others may be loved more than I, <em>Jesus, grant me the grace to desire it</em>.<br>
+That others may be esteemed more than I, <em>Jesus, grant me the grace to desire it</em>.<br>
+That, in the opinion of the world, others may increase and I may decrease, <em>Jesus, grant me the grace to desire it</em>.<br>
+That others may be chosen and I set aside, <em>Jesus, grant me the grace to desire it</em>.<br>
+That others may be praised and I unnoticed, <em>Jesus, grant me the grace to desire it</em>.<br>
+That others may be preferred to me in everything, <em>Jesus, grant me the grace to desire it</em>.<br>
+That others may become holier than I, provided that I may become as holy as I should, <em>Jesus, grant me the grace to desire it</em>.
+</p>
+`
+
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 // resendAPIURL is a var (not a const) so tests can point it at a fake server.
@@ -234,11 +270,19 @@ func sendDigestEmail(blocks [][]reminderSlotRow, loc *time.Location) error {
 	}
 
 	day := mustParseTime(blocks[0][0].StartTime).In(loc).Format("Monday, Jan 2")
+	siteURL := strings.TrimRight(os.Getenv("NEXT_PUBLIC_SITE_URL"), "/")
 	subject := fmt.Sprintf("Office hours today: %s", day)
 	html := fmt.Sprintf(
-		"<p>Hi %s,</p><p>You have office hours today, %s:</p><ul>%s</ul>"+
-			"<p>Head to the app to check in once you're at the office.</p>",
-		firstName, day, items.String(),
+		`<div style="text-align:center;margin-bottom:24px;">`+
+			`<img src="%s/brand/crest.png" alt="All Saints Catholic Newman Center crest" width="72" style="height:auto;">`+
+			`</div>`+
+			`<p>Hi %s,</p><p>You have office hours today, %s:</p><ul>%s</ul>`+
+			`<p><a href="%s" style="display:inline-block;padding:10px 20px;background:#7a1f2b;color:#fff;`+
+			`text-decoration:none;border-radius:6px;">Open the app to check in</a></p>`+
+			`<hr style="margin:28px 0;border:none;border-top:1px solid #ddd;">`+
+			`%s`+
+			`<p style="margin-top:28px;color:#666;">— All Saints Catholic Newman Center at Arizona State University</p>`,
+		siteURL, firstName, day, items.String(), siteURL, litanyOfHumilityHTML,
 	)
 
 	payload, err := json.Marshal(map[string]any{
