@@ -1,5 +1,5 @@
 /**
- * Hand-maintained database types, matching supabase/migrations/0001-0005.
+ * Hand-maintained database types, matching supabase/migrations/0001-0006.
  * Regenerate with `supabase gen types typescript` once the CLI is linked if you
  * prefer generated types.
  */
@@ -23,6 +23,7 @@ export interface Database {
           end_time: string;
           status: SlotStatus;
           recurring_claim_id: string | null;
+          reminder_sent_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -32,6 +33,7 @@ export interface Database {
           end_time: string;
           status?: SlotStatus;
           recurring_claim_id?: string | null;
+          reminder_sent_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -41,6 +43,7 @@ export interface Database {
           end_time?: string;
           status?: SlotStatus;
           recurring_claim_id?: string | null;
+          reminder_sent_at?: string | null;
           created_at?: string;
         };
         Relationships: [];

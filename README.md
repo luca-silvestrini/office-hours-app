@@ -17,7 +17,7 @@ location-verified check-in, and email reminders.
 | 3 | Auth end to end | ✅ done — email/password (`0004` migration adds `name`; magic-link removed) |
 | 4 | Weekly calendar UI | ✅ done — cell shows claimant names, 2 slots/week cap, back-to-back check-in merge |
 | 5 | Go geolocation check-in + weekly-repeat claims | ✅ done (`api-go/checkin.go`, slot modal in the grid) |
-| 6 | Vercel Cron + reminder emails | ⬜ not started — also needs a top-up job to keep recurring claims (`recurring_claims`) materialized past their initial `RECURRING_HORIZON_WEEKS` window |
+| 6 | Vercel Cron + reminder emails | ✅ done (`api-go/reminders.go`, `0006` migration) — still needs a top-up job to keep recurring claims (`recurring_claims`) materialized past their initial `RECURRING_HORIZON_WEEKS` window |
 | 7 | Retroactive / manual check-in | ⬜ RLS in place, UI not started |
 
 ## Local setup
@@ -114,15 +114,38 @@ api-go/
   go.mod
   health.go                    # GET /api-go/health — proves the Go pipeline
   checkin.go                   # POST /api-go/checkin — geolocation check-in
+  reminders.go                 # GET /api-go/reminders — Vercel Cron, sends check-in-window emails
   geo/geo.go                   # haversine + office location — NOT under internal/:
                                 #   Vercel's Go builder isolates each function into
                                 #   its own build sandbox, which breaks Go's internal/
                                 #   import-visibility rule the moment more than one
                                 #   function needs the shared package
 supabase/
-  migrations/0001-0005_*.sql
+  migrations/0001-0006_*.sql
 vercel.json                    # polyglot build: @vercel/next + @vercel/go
 ```
+
+## Reminder emails
+
+`api-go/reminders.go` runs once a day via Vercel Cron (`vercel.json`'s
+`crons` entry, `0 14 * * *` — 7:00 AM in `America/Phoenix`, which doesn't
+observe DST) — daily rather than tied to each slot's own check-in window, so
+it works on Vercel's Hobby plan (per-minute schedules need Pro). Each run
+sends one "office hours today" digest email per user with a claimed slot that
+day, listing every slot (merging back-to-back ones the same way `checkin.go`
+lets one check-in cover multiple contiguous hours) and when its check-in
+window opens (`CHECK_IN_WINDOW_EARLY_MINUTES` / `checkInEarlyGraceMinutes`,
+10 minutes before `start_time`). `office_hours_slots.reminder_sent_at`
+(`0006` migration) makes each send idempotent across cron runs.
+
+To change the send time, edit the cron schedule in `vercel.json` (it's UTC,
+so account for `America/Phoenix` being fixed at UTC-7 year-round).
+
+**Sending domain:** emails send from `RESEND_FROM_EMAIL`. This project's
+domain (`updates.asucatholic.org`) was verified in Resend via the three DNS
+records IT added on 2026-09-18 (TXT DKIM + two CNAMEs) — confirm that domain
+still shows "Verified" in the Resend dashboard before relying on
+deliverability.
 
 ## Deploy notes
 
@@ -145,6 +168,8 @@ Without it, `@vercel/next`'s own router claims every path — including
 `/api-go/*` — before the Go functions ever run, so they 404 even though the
 build succeeded. Add a new `routes` entry alongside each new function.
 
-Set the same environment variables in Vercel → Project Settings. Vercel Cron
-(step 6) will be added to `vercel.json` as a `crons` entry pointing at the
-reminders Go function.
+Set the same environment variables in Vercel → Project Settings, including
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CRON_SECRET` for step 6. Vercel
+injects `CRON_SECRET` into the request it sends `/api-go/reminders`
+automatically — the value you set in Project Settings just has to match what
+`reminders.go` checks against.
