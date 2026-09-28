@@ -4,6 +4,7 @@ import { WeeklyGrid } from "@/components/weekly-grid";
 import Image from "next/image";
 import { CrossGlyph } from "@/components/brand-mark";
 import { SideDevotion } from "@/components/side-devotion";
+import { AccountMenu } from "@/components/account-menu";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -64,14 +65,7 @@ export default async function Home() {
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3 lg:ml-0">
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold ring-1 ring-white/25">
-                {initial}
-              </span>
-              <span className="max-w-[16ch] truncate text-sm text-header-ink-soft">
-                {displayName}
-              </span>
-            </div>
+            <AccountMenu displayName={displayName ?? "?"} initial={initial} />
             <form action="/auth/signout" method="post">
               <button
                 type="submit"
