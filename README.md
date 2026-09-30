@@ -18,6 +18,7 @@ location-verified check-in, and email reminders.
 | 4 | Weekly calendar UI | ✅ done — cell shows claimant names, 2 slots/week cap, back-to-back check-in merge |
 | 5 | Go geolocation check-in + weekly-repeat claims | ✅ done (`api-go/checkin.go`, slot modal in the grid) |
 | 6 | Vercel Cron + reminder emails | ✅ done (`api-go/reminders.go`, `0006` migration) — still needs a top-up job to keep recurring claims (`recurring_claims`) materialized past their initial `RECURRING_HORIZON_WEEKS` window |
+| 6b | Weekly signup-reminder emails | ✅ done (`api-go/signup-reminders.go`, `0007` migration) — Monday cron nudges anyone short of `MAX_SLOTS_PER_USER_PER_WEEK` slots for the current week |
 | 7 | Retroactive / manual check-in | ⬜ RLS in place, UI not started |
 
 ## Local setup
@@ -115,13 +116,14 @@ api-go/
   health.go                    # GET /api-go/health — proves the Go pipeline
   checkin.go                   # POST /api-go/checkin — geolocation check-in
   reminders.go                 # GET /api-go/reminders — Vercel Cron, sends check-in-window emails
+  signup-reminders.go          # GET /api-go/signup-reminders — Vercel Cron, Monday signup nudges
   geo/geo.go                   # haversine + office location — NOT under internal/:
                                 #   Vercel's Go builder isolates each function into
                                 #   its own build sandbox, which breaks Go's internal/
                                 #   import-visibility rule the moment more than one
                                 #   function needs the shared package
 supabase/
-  migrations/0001-0006_*.sql
+  migrations/0001-0007_*.sql
 vercel.json                    # polyglot build: @vercel/next + @vercel/go
 ```
 
@@ -140,6 +142,17 @@ window opens (`CHECK_IN_WINDOW_EARLY_MINUTES` / `checkInEarlyGraceMinutes`,
 
 To change the send time, edit the cron schedule in `vercel.json` (it's UTC,
 so account for `America/Phoenix` being fixed at UTC-7 year-round).
+
+`api-go/signup-reminders.go` runs every Monday via the same Vercel Cron
+mechanism (`0 14 * * 1` — also 7:00 AM `America/Phoenix`). It looks at the
+week already under way (Sunday–Saturday, matching `src/lib/week.ts`'s
+`startOfWeek`) and emails anyone who hasn't claimed all
+`MAX_SLOTS_PER_USER_PER_WEEK` slots yet — tailored copy for "0 slots claimed"
+vs. "missing your second slot." `signup_reminder_log` (`0007` migration,
+unique on `(user_id, week_start)`) makes each week's send idempotent per
+user, the same way `reminder_sent_at` does for the daily digest. Two cron
+entries total stays within Vercel Hobby's 2-cron-job limit; adding a third
+scheduled job needs a Pro plan.
 
 **Sending domain:** emails send from `RESEND_FROM_EMAIL`. This project's
 domain (`updates.asucatholic.org`) was verified in Resend via the three DNS
